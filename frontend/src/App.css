@@ -1,0 +1,91 @@
+.App {
+  text-align: center;
+}
+
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}/* Estilos para el contenedor principal */
+.login-container {
+  height: 100vh; /* Ocupa toda la altura de la pantalla */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Centra verticalmente */
+  align-items: center;     /* Centra horizontalmente */
+  background-color: #f0f2f5; /* Color de fondo opcional */
+}
+
+/* Estilos para la tarjeta */
+.login-card {
+  width: 100%;
+  max-width: 400px; /* Ancho máximo de la tarjeta */
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: #fff; /* Fondo blanco para la tarjeta */
+}
+
+/* Estilos para el título "Iniciar Sesión" */
+.card-header {
+  text-align: center;
+  margin-bottom: 10%; /* Espacio entre el título y el primer campo */
+  font-size: 30px; /* Tamaño del título */
+  color: #333; /* Color del texto */
+}
+
+/* Estilos para los campos de entrada */
+.input-group {
+  margin-bottom: 15px; /* Espacio entre los campos */
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 5px; /* Espacio entre la etiqueta y el campo */
+  font-weight: bold;
+  color: #555;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+/* Estilos para el botón de inicio de sesión */
+.login-button {
+  width: 100%;
+  padding: 10px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.login-button:hover {
+  background-color: #0056b3;
+}
