@@ -14,6 +14,11 @@ const { register } = require('./controllers/authController');
 // Ruta para el registro
 app.post('/auth/register', register);
 
+//Importar el controlador de registro
+const {login } = require('./controllers/loginController');
+
+app.post('/auth/login', login); // Nueva ruta para el login
+
 // Iniciar el servidor
 const PORT = 5000;
 app.listen(PORT, () => {
