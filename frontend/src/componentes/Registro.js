@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; // Para redireccionar
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from 'lucide-react';
 
 const Registro = () => {
   // Estados para los campos del formulario
@@ -38,16 +38,18 @@ const Registro = () => {
       // Enviar los datos al backend
       const response = await axios.post('http://localhost:5000/auth/register', {
         username: nombre, // Usamos "nombre" como "username"
-        email: email,     // Campo "email"
+        email: email, // Campo "email"
         password: contrasenia, // Campo "contrasenia"
       });
 
-      // Si el registro es exitoso
-      alert(response.data.message); // Muestra el mensaje del backend
-      console.log(response.data); // Respuesta del backend
-
-      // Redirigir al usuario a la página de inicio de sesión
-      navigate('/'); // Cambia '/login' por la ruta de tu página de inicio de sesión
+      // Redirigir al componente 2FA con los datos necesarios
+      navigate('/dFA', {
+        state: {
+          qrCode: response.data.qrCode, // Código QR
+          email: email, // Correo electrónico del usuario
+          secret: response.data.secret, // Secreto 2FA (opcional)
+        },
+      });
     } catch (error) {
       // Manejo de errores
       if (error.response) {
@@ -75,6 +77,7 @@ const Registro = () => {
     }
   };
 
+  // Mostrar el formulario de registro
   return (
     <div className="login-container">
       <div className="login-card">

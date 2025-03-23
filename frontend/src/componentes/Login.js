@@ -8,6 +8,8 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mostrarContrasenia, setMostrarContrasenia] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   // Función para alternar entre mostrar y ocultar la contraseña
@@ -15,8 +17,17 @@ const Login = () => {
     setMostrarContrasenia(!mostrarContrasenia);
   };
 
+  // Función para manejar el inicio de sesión
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    if (!email || !password) {
+      setError('Todos los campos son obligatorios');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
 
     try {
       const response = await axios.post('http://localhost:5000/auth/login', {
@@ -24,37 +35,41 @@ const Login = () => {
         password,
       });
 
-      // Guardar el token en el localStorage
-      localStorage.setItem('token', response.data.token);
-
-      alert('Inicio de sesión exitoso');
-      console.log('Token:', response.data.token);
-
-      // Redirigir al usuario a la página principal
-      navigate('/home');
-    } catch (error) {
-      if (error.response) {
-        // El backend respondió con un código de estado fuera del rango 2xx
-        const { status, data } = error.response;
-
-        if (status === 400 && data.message === 'Todos los campos son obligatorios') {
-          alert('Todos los campos son obligatorios');
-        } else if (status === 404 && data.message === 'Usuario no encontrado') {
-          alert('Usuario no encontrado');
-        } else if (status === 401 && data.message === 'Credenciales inválidas') {
-          alert('Credenciales inválidas');
-        } else {
-          alert('Error en el servidor. Inténtalo de nuevo más tarde.');
-        }
-      } else if (error.request) {
-        // La solicitud fue hecha pero no se recibió respuesta
-        alert('No se recibió respuesta del servidor. Verifica tu conexión a internet.');
-      } else {
-        // Algo más causó el error
-        alert('Error al realizar la solicitud. Inténtalo de nuevo.');
+      // Si el 2FA está habilitado, redirigir al componente 2FA con los datos necesarios
+      if (response.data.requires2FA) {
+        navigate('/dFA', {
+          state: {
+            qrCode: response.data.qrCode,
+            email: response.data.email,
+          },
+        });
+        return;
       }
 
-      console.error(error); // Muestra el error en la consola para depuración
+      // Si no requiere 2FA, guardar el token y redirigir al dashboard
+      localStorage.setItem('token', response.data.token);
+      navigate('/home');
+    } catch (error) {
+      // Manejo de errores
+      if (error.response) {
+        const { status, data } = error.response;
+        if (status === 400 && data.message === 'Todos los campos son obligatorios') {
+          setError('Todos los campos son obligatorios');
+        } else if (status === 404 && data.message === 'Usuario no encontrado') {
+          setError('Usuario no encontrado');
+        } else if (status === 401 && data.message === 'Credenciales inválidas') {
+          setError('Credenciales inválidas');
+        } else {
+          setError('Error en el servidor. Inténtalo de nuevo más tarde.');
+        }
+      } else if (error.request) {
+        setError('No se recibió respuesta del servidor. Verifica tu conexión a internet.');
+      } else {
+        setError('Error al realizar la solicitud. Inténtalo de nuevo.');
+      }
+      console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -88,8 +103,13 @@ const Login = () => {
               {mostrarContrasenia ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
-          <button className="btn btn-primary w-100" onClick={handleLogin}>
-            Iniciar Sesión
+          {error && <div className="alert alert-danger">{error}</div>}
+          <button
+            className="btn btn-primary w-100"
+            onClick={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
           <p className="mt-3 text-center">
             ¿No tienes una cuenta? <a href="/register">Regístrate aquí</a>.

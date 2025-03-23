@@ -89,3 +89,11 @@
 .login-button:hover {
   background-color: #0056b3;
 }
+
+
+.btn.btn-outline-secondary {
+  padding: 4px 8px; /* Reduce el relleno */
+  font-size: 12px; /* Reduce el tamaño del texto */
+  line-height: 1.2;
+  border-width: 1px;
+}
