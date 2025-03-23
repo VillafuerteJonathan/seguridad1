@@ -62,9 +62,9 @@ const TwoFA = () => {
     <div className="login-container">
       <div className="login-card">
         <h1>Verificación de 2FA</h1>
-        <p>Escanea el código QR con tu aplicación de autenticación:</p>
-        {qrCode && <img src={qrCode} alt="Código QR" className="qr-code" />}
-        <div className="form-group">
+        <p>Ingresa el codigo que te da la aplicacion de autentificacion :</p>
+        { qrCode &&  <img src={qrCode} alt="Código QR" className="qr-code" />} 
+        <div className="form-group"> 
           <input
             type="text"
             placeholder="Código 2FA"
