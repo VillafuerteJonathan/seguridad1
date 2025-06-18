@@ -1,32 +1,34 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config(); // Cargar variables de entorno desde un archivo .env
+require("dotenv").config();
 
-// Crear una instancia de Express
 const app = express();
 
-// Middlewares
-app.use(cors()); // Habilitar CORS (puedes configurarlo para producción)
-app.use(express.json()); // Parsear el cuerpo de las solicitudes en formato JSON
-
-// Importar controladores
-const { register } = require("./controllers/authController");
-const { login } = require("./controllers/loginController");
-const twoFARoutes = require("./controllers/dFAController"); // Importar las rutas de 2FA
+// Middleware de carga
+app.use(cors());
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(express.json({ limit: '20mb' }));
+;
 
 // Rutas
-app.post("/auth/register", register); // Ruta para el registro
-app.post("/auth/login", login); // Ruta para el login
-app.use("/auth", twoFARoutes); // Rutas de 2FA bajo el prefijo /auth
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const twoFARoutes = require("./controllers/dFAController");
+const fileRoutes = require('./routes/fileRouter');
 
-// Middleware para manejo de errores global
+app.use('/auth', authRoutes);       // /auth/login y /auth/register
+app.use('/api/users', userRoutes);  // /api/users
+app.use('/auth', twoFARoutes);      // /auth/verify-2fa o similar
+app.use('/api', fileRoutes);        // /api/upload, /api/files, etc.
+
+// Middleware de errores global
 app.use((err, req, res, next) => {
-  console.error(err.stack); // Log del error en la consola
+  console.error(err.stack);
   res.status(500).json({ message: "Algo salió mal en el servidor" });
 });
 
-// Iniciar el servidor
-const PORT = process.env.PORT || 5000; // Usar variable de entorno o 5000 por defecto
+// Servidor
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });

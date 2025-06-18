@@ -1,10 +1,10 @@
 import React from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './App.css';
-import Login from './componentes/Login';
-import Register from './componentes/Registro';
-import Dashboard from './componentes/Dashboard';
-import Verificacion from './componentes/dFA';
+import Login from './pages/Login';
+import Register from './pages/Registro';
+import Dashboard from './pages/Dashboard';
+import Verificacion from './pages/dFA';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 
 

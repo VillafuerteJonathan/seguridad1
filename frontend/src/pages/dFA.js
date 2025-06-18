@@ -38,6 +38,8 @@ const TwoFA = () => {
 
       // Si el código 2FA es válido, guardar el token y redirigir al dashboard
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+       
       navigate('/home');
     } catch (error) {
       if (error.response) {

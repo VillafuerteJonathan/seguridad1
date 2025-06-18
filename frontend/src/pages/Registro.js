@@ -12,6 +12,8 @@ const Registro = () => {
   const [confirmarContrasenia, setConfirmarContrasenia] = useState('');
   const [mostrarContrasenia, setMostrarContrasenia] = useState(false);
   const [mostrarConfirmarContrasenia, setMostrarConfirmarContrasenia] = useState(false);
+  const [role, setRole] = useState('');
+
 
   // Hook para redirección
   const navigate = useNavigate();
@@ -40,6 +42,7 @@ const Registro = () => {
         username: nombre, // Usamos "nombre" como "username"
         email: email, // Campo "email"
         password: contrasenia, // Campo "contrasenia"
+        role: role, // Campo "role"
       });
 
       // Redirigir al componente 2FA con los datos necesarios
@@ -144,6 +147,13 @@ const Registro = () => {
                 {mostrarConfirmarContrasenia ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+          </div>
+          <div className="input-group">
+            <select className="form-control" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="">Selecciona un rol</option>
+                  <option value="admin">Admin</option>
+                  <option value="user">Usuario</option>
+                </select>
           </div>
 
           {/* Botón de registro */}
