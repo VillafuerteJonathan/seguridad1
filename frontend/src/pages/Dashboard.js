@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import {
+  aesEncrypt,
+  aesDecrypt,
+  stringToBytes,
+  bytesToString
+} from '../utils/aes128';
 
 const sidebarBtnStyle = {
   background: 'none',
@@ -14,42 +20,63 @@ const sidebarBtnStyle = {
   border: 'none',
 };
 
-// Función de codificación Huffman (como la tienes)
-const huffmanEncode = (input) => {
-  const freq = {};
-  for (const char of input) {
-    freq[char] = (freq[char] || 0) + 1;
+// --- Helpers para manejar bytes y bloques ---
+const chunkArray = (arr, size = 16) => {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
   }
-
-  const heap = Object.entries(freq).map(([char, freq]) => ({ char, freq }));
-  while (heap.length > 1) {
-    heap.sort((a, b) => a.freq - b.freq);
-    const left = heap.shift();
-    const right = heap.shift();
-    heap.push({ char: null, freq: left.freq + right.freq, left, right });
-  }
-
-  const tree = heap[0];
-  const codes = {};
-  const buildCodes = (node, code) => {
-    if (node.char) {
-      codes[node.char] = code;
-    } else {
-      buildCodes(node.left, code + '0');
-      buildCodes(node.right, code + '1');
-    }
-  };
-  buildCodes(tree, '');
-
-  let encoded = '';
-  for (const char of input) {
-    encoded += codes[char];
-  }
-
-  return { encoded };
+  return chunks;
 };
 
-// Formulario para subir archivos
+const padBlock = (block, size = 16) => {
+  const padded = block.slice();
+  while (padded.length < size) {
+    padded.push(0);
+  }
+  return padded;
+};
+
+const bytesToBase64 = (bytes) => {
+  const binary = bytes.reduce((acc, b) => acc + String.fromCharCode(b), '');
+  return btoa(binary);
+};
+
+const base64ToBytes = (base64) => {
+  const binary = atob(base64);
+  const bytes = [];
+  for (let i = 0; i < binary.length; i++) {
+    bytes.push(binary.charCodeAt(i));
+  }
+  return bytes;
+};
+
+// --- Encriptar y desencriptar buffers completos ---
+const encryptData = (dataBytes, key) => {
+  const keyBytes = typeof key === 'string' ? stringToBytes(key) : key;
+  const blocks = chunkArray(dataBytes, 16);
+  let encrypted = [];
+  blocks.forEach((block) => {
+    const padded = padBlock(block);
+    const encryptedBlock = aesEncrypt(padded, keyBytes);
+    encrypted = encrypted.concat(encryptedBlock);
+  });
+  return encrypted;
+};
+
+const decryptData = (encryptedBytes, key) => {
+  const keyBytes = typeof key === 'string' ? stringToBytes(key) : key;
+  const blocks = chunkArray(encryptedBytes, 16);
+  let decrypted = [];
+  blocks.forEach((block) => {
+    const decryptedBlock = aesDecrypt(block, keyBytes);
+    decrypted = decrypted.concat(decryptedBlock);
+  });
+  return decrypted;
+};
+
+// ------------------ Componentes -------------------
+
 const UploadForm = ({ user }) => {
   const [file, setFile] = useState(null);
   const [clave, setClave] = useState('');
@@ -61,7 +88,7 @@ const UploadForm = ({ user }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file || !clave) return alert("Debes seleccionar un archivo y una clave.");
+    if (!file || !clave) return alert('Debes seleccionar un archivo y una clave.');
 
     setLoading(true);
 
@@ -69,36 +96,25 @@ const UploadForm = ({ user }) => {
 
     reader.onload = async () => {
       try {
-        // Leer archivo como ArrayBuffer
         const arrayBuffer = reader.result;
+        const bytes = Array.from(new Uint8Array(arrayBuffer));
 
-        // Convertir a base64 para cifrarlo con Huffman (que usa string)
-        const base64String = btoa(
-          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        );
+        // Cifrar con AES-128 por bloques
+        const encryptedBytes = encryptData(bytes, clave);
+        const encryptedBase64 = bytesToBase64(encryptedBytes);
 
-        // Concatenar clave para integrarla en el cifrado
-        const toEncode = base64String + clave;
-
-        // Aplicar Huffman
-        const { encoded } = huffmanEncode(toEncode);
-
-        // Enviar JSON con archivo cifrado + clave + usuario stringify
+        // Enviar al backend
         const res = await fetch('http://localhost:5000/api/upload', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             filename: file.name,
-            content: encoded,
-            clave: clave,
+            content: encryptedBase64,
             user: JSON.stringify(user),
           }),
         });
 
         const data = await res.json();
-
         alert(data.message || 'Archivo subido correctamente');
         setFile(null);
         setClave('');
@@ -116,7 +132,7 @@ const UploadForm = ({ user }) => {
   return (
     <div className="card" style={{ maxWidth: 600 }}>
       <div className="card-body">
-        <h3>Cargar archivo PDF cifrado (Huffman)</h3>
+        <h3>Cargar archivo PDF cifrado (AES-128)</h3>
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
             <label className="form-label">Seleccionar PDF:</label>
@@ -147,16 +163,25 @@ const UploadForm = ({ user }) => {
   );
 };
 
-// Perfil de usuario
 const Profile = ({ user }) => {
   if (!user) return <div>Cargando perfil...</div>;
   return (
     <div className="card" style={{ maxWidth: 600 }}>
       <div className="card-body">
         <h2 className="card-title mb-4">👤 Perfil del Usuario</h2>
-        <p><strong>Nombre de usuario:</strong> {user.username}</p>
-        {user.email && <p><strong>Email:</strong> {user.email}</p>}
-        {user.role && <p><strong>Rol:</strong> {user.role}</p>}
+        <p>
+          <strong>Nombre de usuario:</strong> {user.username}
+        </p>
+        {user.email && (
+          <p>
+            <strong>Email:</strong> {user.email}
+          </p>
+        )}
+        {user.role && (
+          <p>
+            <strong>Rol:</strong> {user.role}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -166,7 +191,6 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [usuario, setUsuario] = useState('');
   const [section, setSection] = useState('upload');
-  const [filesDB] = useState([]);
   const [auditLogs] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -190,28 +214,175 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  const MyFiles = () => <div><h2>Mis archivos</h2></div>;
-  const AuditLogs = () => <div><h2>Auditoría</h2></div>;
-  const LoginScreen = () => <div><h2>Login</h2></div>;
-  const Toast = ({ message, show }) => show ? (
-    <div style={{
-      position: 'fixed',
-      bottom: 20,
-      right: 20,
-      backgroundColor: '#333',
-      color: '#fff',
-      padding: '10px 20px',
-      borderRadius: 8,
-    }}>
-      {message}
+  // Componente interno para listar y descifrar archivos
+  const MyFiles = () => {
+    const [archivos, setArchivos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [mostrarContenido, setMostrarContenido] = useState(null);
+    const [claveDescifrado, setClaveDescifrado] = useState('');
+    const [textoDescifrado, setTextoDescifrado] = useState(null);
+    const [errorClave, setErrorClave] = useState('');
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+
+    useEffect(() => {
+      const fetchArchivos = async () => {
+        if (!currentUser || !currentUser.id) {
+          setLoading(false);
+          return;
+        }
+        try {
+          const res = await fetch(`http://localhost:5000/api/user-files?userId=${currentUser.id}`);
+          const data = await res.json();
+          setArchivos(data);
+        } catch (error) {
+          console.error('Error al obtener archivos:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchArchivos();
+    }, [currentUser]);
+
+    const handleDescifrar = () => {
+      setErrorClave('');
+      setTextoDescifrado(null);
+      try {
+        const encryptedBytes = base64ToBytes(mostrarContenido);
+        const decryptedBytes = decryptData(encryptedBytes, claveDescifrado);
+
+        // Crear Blob PDF y URL para iframe
+        const blob = new Blob([new Uint8Array(decryptedBytes)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        setTextoDescifrado(url);
+      } catch (err) {
+        console.error(err);
+        setErrorClave('Clave incorrecta o error al descifrar');
+      }
+    };
+
+    return (
+      <div>
+        <h3>📄 Mis Archivos</h3>
+        {loading ? (
+          <p>Cargando archivos...</p>
+        ) : archivos.length === 0 ? (
+          <p>No tienes archivos aún.</p>
+        ) : (
+          <table className="table table-bordered table-hover">
+            <thead className="table-dark">
+              <tr>
+                <th>Nombre</th>
+                <th>Subido en</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {archivos.map((file) => (
+                <tr key={file.id}>
+                  <td>{file.filename}</td>
+                  <td>{new Date(file.uploaded_at).toLocaleString()}</td>
+                  <td>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        setMostrarContenido(file.encrypted_content);
+                        setTextoDescifrado(null);
+                        setClaveDescifrado('');
+                        setErrorClave('');
+                      }}
+                    >
+                      🔐 Ver Cifrado
+                    </button>{' '}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {mostrarContenido && (
+          <div className="alert alert-secondary mt-3">
+            <strong>Contenido Cifrado (base64):</strong>
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{mostrarContenido}</pre>
+
+            <div className="mt-3">
+              <label>Clave para descifrar:</label>
+              <input
+                type="text"
+                className="form-control"
+                value={claveDescifrado}
+                onChange={(e) => setClaveDescifrado(e.target.value)}
+              />
+              <button className="btn btn-success mt-2" onClick={handleDescifrar}>
+                🔓 Descifrar
+              </button>
+              {errorClave && <p className="text-danger mt-2">{errorClave}</p>}
+            </div>
+
+            {textoDescifrado && (
+              <div className="mt-3">
+                <strong>Archivo PDF descifrado:</strong>
+                <iframe
+                  src={textoDescifrado}
+                  title="Archivo Descifrado"
+                  width="100%"
+                  height="600px"
+                  style={{ border: '1px solid #ccc' }}
+                />
+              </div>
+            )}
+
+            <button
+              className="btn btn-sm btn-danger mt-3"
+              onClick={() => {
+                setMostrarContenido(null);
+                setTextoDescifrado(null);
+                setClaveDescifrado('');
+                setErrorClave('');
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const AuditLogs = () => (
+    <div>
+      <h2>Auditoría</h2>
+      {/* Implementa aquí tu vista de auditoría si quieres */}
     </div>
-  ) : null;
+  );
+
+  const LoginScreen = () => <div><h2>Login</h2></div>;
+
+  const Toast = ({ message, show }) =>
+    show ? (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          backgroundColor: '#333',
+          color: '#fff',
+          padding: '10px 20px',
+          borderRadius: 8,
+        }}
+      >
+        {message}
+      </div>
+    ) : null;
 
   return (
     <div>
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
         <div className="container">
-          <Link className="navbar-brand" to="/dashboard">Bienvenido, {usuario}</Link>
+          <Link className="navbar-brand" to="/dashboard">
+            Bienvenido, {usuario}
+          </Link>
         </div>
       </nav>
 
@@ -228,15 +399,20 @@ const Dashboard = () => {
           }}
         >
           <h2 style={{ fontSize: 18, fontWeight: 'bold' }}>Menú</h2>
-          <button onClick={() => setSection('upload')} style={sidebarBtnStyle}>📁 Carga de Archivos</button>
-          <button onClick={() => setSection('myfiles')} style={sidebarBtnStyle}>📄 Mis Archivos</button>
-          <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>🕵️ Auditoría</button>
-          <button onClick={() => setSection('profile')} style={sidebarBtnStyle}>👤 Perfil</button>
+          <button onClick={() => setSection('upload')} style={sidebarBtnStyle}>
+            📁 Carga de Archivos
+          </button>
+          <button onClick={() => setSection('myfiles')} style={sidebarBtnStyle}>
+            📄 Mis Archivos
+          </button>
+          <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
+            🕵️ Auditoría
+          </button>
+          <button onClick={() => setSection('profile')} style={sidebarBtnStyle}>
+            👤 Perfil
+          </button>
           <hr style={{ borderColor: '#334155' }} />
-          <button
-            onClick={handleLogout}
-            style={{ ...sidebarBtnStyle, backgroundColor: '#ef4444' }}
-          >
+          <button onClick={handleLogout} style={{ ...sidebarBtnStyle, backgroundColor: '#ef4444' }}>
             Cerrar sesión
           </button>
         </aside>
