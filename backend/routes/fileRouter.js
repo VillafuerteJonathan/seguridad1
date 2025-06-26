@@ -8,7 +8,7 @@ const upload = multer({ storage });
 
 router.post('/upload', upload.single('pdf'), fileController.uploadFile);
 router.get('/user-files', fileController.getUserFiles);
-
+router.delete('/delete-file', fileController.deleteFile);
 
 module.exports = router;
 

@@ -19,7 +19,7 @@ app.use('/auth', authRoutes);       // /auth/login y /auth/register
 app.use('/auth', twoFARoutes);      // /auth/verify-2fa o similar
 app.use('/api/users', userRoutes);  // /api/users
 app.use('/api', fileRoutes);        // /api/upload, /api/user-files, etc.
-
+       // /api/upload, /api/user-files, etc.
 // Middleware global de manejo de errores
 app.use((err, req, res, next) => {
   console.error(err.stack);
