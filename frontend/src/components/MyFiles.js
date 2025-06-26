@@ -87,6 +87,16 @@ const MyFiles = () => {
       const blob = new Blob([new Uint8Array(cleanBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setTextoDescifrado(url);
+        fetch('http://localhost:5000/api/log-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        fileId: archivoSeleccionado.id,
+        action: 'Descifrar archivo',
+        description: `Usuario ${currentUser.id} descifró archivo ${archivoSeleccionado.id}`
+      }),
+    });
     } catch (err) {
       console.error(err);
       setErrorClave('❌ Clave incorrecta o error al descifrar');
