@@ -46,6 +46,9 @@ const MyFiles = () => {
   const [textoDescifrado, setTextoDescifrado] = useState(null);
   const [errorClave, setErrorClave] = useState('');
   const [deletingFileId, setDeletingFileId] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+  const [usuarioDestino, setUsuarioDestino] = useState('');
+  const [archivoACompartir, setArchivoACompartir] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem('user'));
   const modalRef = useRef(null);
@@ -87,16 +90,16 @@ const MyFiles = () => {
       const blob = new Blob([new Uint8Array(cleanBytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setTextoDescifrado(url);
-        fetch('http://localhost:5000/api/log-action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: currentUser.id,
-        fileId: archivoSeleccionado.id,
-        action: 'Descifrar archivo',
-        description: `Usuario ${currentUser.id} descifró archivo ${archivoSeleccionado.id}`
-      }),
-    });
+      fetch('http://localhost:5000/api/log-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          fileId: archivoSeleccionado.id,
+          action: 'Descifrar archivo',
+          description: `Usuario ${currentUser.id} descifró archivo ${archivoSeleccionado.id}`
+        }),
+      });
     } catch (err) {
       console.error(err);
       setErrorClave('❌ Clave incorrecta o error al descifrar');
@@ -119,7 +122,7 @@ const MyFiles = () => {
       if (res.ok) {
         alert(data.message || 'Archivo eliminado correctamente');
         setArchivos((prev) => prev.filter((file) => file.id !== fileId));
-        if (archivoSeleccionado?.id === fileId) {
+                if (archivoSeleccionado?.id === fileId) {
           setArchivoSeleccionado(null);
           setTextoDescifrado(null);
           setClaveDescifrado('');
@@ -133,6 +136,40 @@ const MyFiles = () => {
       alert('Error de red o del servidor');
     } finally {
       setDeletingFileId(null);
+    }
+  };
+
+  const handleAbrirCompartir = async (file) => {
+    setArchivoACompartir(file);
+    try {
+      const res = await fetch('http://localhost:5000/api/users');
+      const data = await res.json();
+      setUsuarios(data.filter(u => u.id !== currentUser.id));
+      const modal = new window.bootstrap.Modal(document.getElementById('modalCompartir'));
+      modal.show();
+    } catch (err) {
+      console.error('Error al cargar usuarios:', err);
+    }
+  };
+
+  const handleCompartir = async () => {
+    if (!usuarioDestino) return alert('Selecciona un usuario');
+
+    try {
+      const res = await fetch('http://localhost:5000/api/share-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileId: archivoACompartir.id,
+          userIdOrigen: currentUser.id,
+          userIdDestino: usuarioDestino
+        }),
+      });
+
+      const data = await res.json();
+      alert(data.message);
+    } catch (err) {
+      console.error('Error al compartir:', err);
     }
   };
 
@@ -158,19 +195,24 @@ const MyFiles = () => {
                 <td>{file.filename}</td>
                 <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                 <td>
-                  <button
-                    className="btn btn-sm btn-primary me-2"
+                  <button 
+                    className="btn btn-sm btn-primary me-2" 
                     onClick={() => abrirModal(file)}
                   >
                     🔓 Descifrar
                   </button>
+
                   <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => handleEliminar(file.id)}
-                    disabled={deletingFileId === file.id}
-                  >
-                    {deletingFileId === file.id ? 'Eliminando...' : 'Eliminar'}
-                  </button>
+                   className="btn btn-sm btn-warning me-2" onClick={() => handleAbrirCompartir(file)}>
+                      🔗 Compartir
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => handleEliminar(file.id)}
+                      disabled={deletingFileId === file.id}
+                    >
+                      🗑️ {deletingFileId === file.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
                 </td>
               </tr>
             ))}
@@ -228,8 +270,40 @@ const MyFiles = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal para compartir */}
+      <div
+        className="modal fade"
+        id="modalCompartir"
+        tabIndex="-1"
+        aria-labelledby="modalCompartirLabel"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title" id="modalCompartirLabel">
+                Compartir archivo: {archivoACompartir?.filename}
+              </h5>
+              <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div className="modal-body">
+              <select className="form-select" onChange={e => setUsuarioDestino(e.target.value)} value={usuarioDestino}>
+                <option value="">Selecciona usuario</option>
+                {usuarios.map((u) => (
+                  <option key={u.id} value={u.id}>{u.username}</option>
+                ))}
+              </select>
+            </div>
+            <div className="modal-footer">
+              <button onClick={handleCompartir} className="btn btn-primary">Compartir</button>
+              <button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default MyFiles; 
+export default MyFiles;

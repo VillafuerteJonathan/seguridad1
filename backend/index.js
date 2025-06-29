@@ -14,6 +14,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const twoFARoutes = require("./controllers/dFAController");
 const fileRoutes = require('./routes/fileRouter');
+const filePRoutes = require('./routes/filePermissionsRouter');
 const auditRoutes = require('./routes/audit'); // <-- aquí importas auditRoutes
 
 app.use('/auth', authRoutes);       // /auth/login y /auth/register
@@ -21,6 +22,7 @@ app.use('/auth', twoFARoutes);      // /auth/verify-2fa o similar
 app.use('/api/users', userRoutes);  // /api/users
 app.use('/api', fileRoutes);        // /api/upload, /api/user-files, etc.
 app.use('/api', auditRoutes);
+app.use('/api', filePRoutes);       // /api/shared-files
 // Middleware global de manejo de errores
 app.use((err, req, res, next) => {
   console.error(err.stack);

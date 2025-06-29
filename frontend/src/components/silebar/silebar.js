@@ -68,6 +68,23 @@ const Sidebar = ({ filesCount = 0, onNavigate }) => {
       </a>
 
       <a
+        href="#shared"
+        className={`nav-item ${activeSection === 'shared' ? 'active' : ''}`}
+        data-section="shared"
+        tabIndex={0}
+        onClick={e => { e.preventDefault(); handleClick('shared') }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); handleClick('shared')
+          }
+        }}
+        aria-current={activeSection === 'shared' ? 'page' : undefined}
+      >
+        <span className="material-icons" aria-hidden="true">share</span>
+        <span>Archivos Compartidos</span>
+      </a>
+
+      <a
         href="#audit"
         className={`nav-item ${activeSection === 'audit' ? 'active' : ''}`}
         data-section="audit"

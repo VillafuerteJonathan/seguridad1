@@ -143,3 +143,36 @@ exports.deleteFile = (req, res) => {
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
+
+exports.compartirArchivo = (req, res) => {
+  const { fileId, userIdOrigen, userIdDestino } = req.body;
+
+  if (!fileId || !userIdOrigen || !userIdDestino) {
+    return res.status(400).json({ message: 'Faltan datos para compartir' });
+  }
+
+  const checkFileSql = `SELECT id FROM files WHERE id = ? AND uploaded_by = ?`;
+  db.query(checkFileSql, [fileId, userIdOrigen], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Error al verificar archivo' });
+    if (result.length === 0) return res.status(403).json({ message: 'Archivo no válido o sin permisos' });
+
+    const insertSql = `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, 'read')`;
+    db.query(insertSql, [fileId, userIdDestino], (err2) => {
+      if (err2) return res.status(500).json({ message: 'Error al compartir archivo' });
+
+      return res.json({ message: 'Archivo compartido exitosamente' });
+    });
+  });
+};
+exports.getFileContent = (req, res) => {
+  const fileId = req.query.fileId;
+  if (!fileId) return res.status(400).json({ message: 'Falta fileId' });
+
+  const sql = `SELECT encrypted_content FROM files WHERE id = ? AND status = 'activo'`;
+  db.query(sql, [fileId], (err, results) => {
+    if (err) return res.status(500).json({ message: 'Error al consultar contenido' });
+    if (results.length === 0) return res.status(404).json({ message: 'Archivo no encontrado' });
+
+    res.json(results[0]);
+  });
+};

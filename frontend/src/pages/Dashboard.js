@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import UploadForm from '../components/UploadForm';
 import MyFiles from '../components/MyFiles';
+import SharedFiles from '../components/SharedFiles';
 import Profile from '../components/Profile';
 import AuditLogs from '../components/AuditLogs';
 import Toast from '../components/Toast';
@@ -74,6 +75,9 @@ const Dashboard = () => {
           <button onClick={() => setSection('myfiles')} style={sidebarBtnStyle}>
             📄 Mis Archivos
           </button>
+          <button onClick={() => setSection('shared')} style={sidebarBtnStyle}>
+            🔗 Archivos Compartidos
+         </button>
           <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
             🕵️ Auditoría
           </button>
@@ -89,6 +93,7 @@ const Dashboard = () => {
         <main style={{ flex: 1, padding: 24 }}>
           {section === 'upload' && <UploadForm user={currentUser} />}
           {section === 'myfiles' && <MyFiles />}
+          {section === 'shared' && <SharedFiles />}
           {section === 'audit' && <AuditLogs logs={auditLogs} />}
           {section === 'profile' && <Profile user={currentUser} />}
         </main>
