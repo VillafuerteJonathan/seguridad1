@@ -1,22 +1,17 @@
+// db.js
 const mysql = require('mysql2');
-require('dotenv').config(); // Asegúrate de cargar las variables de entorno
+require('dotenv').config();
 
-const db = mysql.createConnection({
+const connection = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD || null, // Si no hay contraseña, usa null
+  password: process.env.DB_PASSWORD || null,
   database: process.env.DB_NAME,
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error('Error conectando a la base de datos:', err);
-  } else {
-    console.log('Conectado a la base de datos MySQL');
-  }
-
+connection.connect((err) => {
+  if (err) console.error('Error conectando a la base de datos:', err);
+  else console.log('Conectado a la base de datos MySQL');
 });
 
-module.exports = db;
-
-//inicializando github
+module.exports = connection.promise(); // 👈 Usa promesas

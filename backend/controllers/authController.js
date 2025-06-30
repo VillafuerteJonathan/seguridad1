@@ -1,4 +1,4 @@
-const db = require('../db');
+const db = require('../db'); // Ahora es db con soporte para await
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 
@@ -22,22 +22,19 @@ const register = async (req, res) => {
     const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
 
     const sql = 'INSERT INTO users (username, email, password, two_factor_secret, role) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [username, email, password, secret.base32, role], (err) => {
-      if (err) {
-        if (err.code === 'ER_DUP_ENTRY') {
-          return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
-        }
-        return res.status(500).json({ message: 'Error registrando al usuario' });
-      }
+    await db.query(sql, [username, email, password, secret.base32, role]); // 👈 await
 
-      res.status(201).json({
-        message: 'Usuario registrado exitosamente',
-        qrCode: qrCodeDataUrl,
-        secret: secret.base32,
-      });
+    res.status(201).json({
+      message: 'Usuario registrado exitosamente',
+      qrCode: qrCodeDataUrl,
+      secret: secret.base32,
     });
+
   } catch (error) {
     console.error('Error en registro:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'El correo electrónico ya está registrado' });
+    }
     res.status(500).json({ message: 'Error en el servidor' });
   }
 };

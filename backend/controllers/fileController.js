@@ -1,178 +1,156 @@
 const db = require('../db');
 
-exports.uploadFile = (req, res) => {
+exports.uploadFile = async (req, res) => {
   try {
-    const { user, filename, content } = req.body; // No recibimos 'clave' por seguridad
-
+    const { user, filename, content } = req.body;
     if (!user || !filename || !content) {
       return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
-    // Parsear user si viene como string JSON
     const userObj = typeof user === 'string' ? JSON.parse(user) : user;
-
     if (!userObj || !userObj.id) {
       return res.status(400).json({ message: 'Usuario inválido' });
     }
 
-    // Obtener extensión original del archivo
     const ext = '.' + filename.split('.').pop();
 
-    const sql = `
+    const insertFileSQL = `
       INSERT INTO files (filename, encrypted_content, uploaded_by, original_extension, uploaded_at, access_level, status)
       VALUES (?, ?, ?, ?, NOW(), 'privado', 'activo')
     `;
-    const values = [filename, content, userObj.id, ext];
+    const [result] = await db.query(insertFileSQL, [filename, content, userObj.id, ext]);
 
-    db.query(sql, values, (err, result) => {
-      if (err) {
-        console.error('Error al guardar archivo:', err);
-        return res.status(500).json({ message: 'Error al guardar archivo en la base de datos' });
-      }
+    const logSQL = `
+      INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+      VALUES (?, ?, 'upload', ?, ?, NOW())
+    `;
+    const logValues = [
+      userObj.id,
+      result.insertId,
+      `El usuario subió el archivo ${filename}`,
+      req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+    ];
+    try {
+      await db.query(logSQL, logValues);
+    } catch (logErr) {
+      console.error('Error al registrar auditoría:', logErr);
+    }
 
-      // Registrar auditoría (log)
-      const logSql = `
-        INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
-        VALUES (?, ?, 'upload', ?, ?, NOW())
-      `;
-      const logValues = [
-        userObj.id,
-        result.insertId,
-        `El usuario subió el archivo ${filename}`,
-        req.ip || 'IP no disponible',
-      ];
-
-      db.query(logSql, logValues, (logErr) => {
-        if (logErr) {
-          console.error('Error al registrar auditoría:', logErr);
-          // No bloqueamos respuesta por error en auditoría
-        }
-        return res.json({ message: 'Archivo subido exitosamente', fileId: result.insertId });
-      });
-    });
+    return res.json({ message: 'Archivo subido exitosamente', fileId: result.insertId });
   } catch (error) {
     console.error('Error en uploadFile:', error);
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
-exports.getUserFiles = (req, res) => {
+exports.getUserFiles = async (req, res) => {
   const userId = req.query.userId;
+  if (!userId) return res.status(400).json({ message: "Falta el ID del usuario" });
 
-  if (!userId) {
-    return res.status(400).json({ message: "Falta el ID del usuario" });
-  }
+  try {
+    const [results] = await db.query(`
+      SELECT id, filename, uploaded_at, access_level, original_extension, status, encrypted_content
+      FROM files
+      WHERE uploaded_by = ? AND status = 'activo'
+      ORDER BY uploaded_at DESC
+    `, [userId]);
 
-  const sql = `
-    SELECT id, filename, uploaded_at, access_level, original_extension, status, encrypted_content
-    FROM files
-    WHERE uploaded_by = ? AND status = 'activo'
-    ORDER BY uploaded_at DESC
-  `;
-
-  db.query(sql, [userId], (err, results) => {
-    if (err) {
-      console.error('Error al obtener archivos:', err);
-      return res.status(500).json({ message: "Error al obtener archivos" });
-    }
-    // Devolver el contenido cifrado tal cual
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Error al obtener archivos:', err);
+    res.status(500).json({ message: "Error al obtener archivos" });
+  }
 };
-exports.deleteFile = (req, res) => {
+
+exports.deleteFile = async (req, res) => {
   try {
     const { userId, fileId } = req.body;
-
     if (!userId || !fileId) {
       return res.status(400).json({ message: 'Faltan datos obligatorios: userId o fileId' });
     }
 
-    const fileIdNum = Number(fileId);
-    const userIdNum = Number(userId);
+    const [checkResults] = await db.query(
+      `SELECT filename, uploaded_by FROM files WHERE id = ? AND status = 'activo'`,
+      [fileId]
+    );
 
-    // 1. Verificar que el archivo existe y pertenece al usuario
-    const checkSql = `SELECT filename, uploaded_by FROM files WHERE id = ? AND status = 'activo'`;
-    db.query(checkSql, [fileIdNum], (checkErr, checkResults) => {
-      if (checkErr) {
-        console.error('Error al buscar archivo:', checkErr);
-        return res.status(500).json({ message: 'Error al buscar archivo' });
-      }
+    if (checkResults.length === 0) {
+      return res.status(404).json({ message: 'Archivo no encontrado o ya eliminado' });
+    }
 
-      if (checkResults.length === 0) {
-        return res.status(404).json({ message: 'Archivo no encontrado o ya eliminado' });
-      }
+    const file = checkResults[0];
+    if (Number(file.uploaded_by) !== Number(userId)) {
+      return res.status(403).json({ message: 'No tienes permiso para eliminar este archivo' });
+    }
 
-      const file = checkResults[0];
+    await db.query(`UPDATE files SET status = 'eliminado' WHERE id = ?`, [fileId]);
 
-      if (Number(file.uploaded_by) !== userIdNum) {
-        return res.status(403).json({ message: 'No tienes permiso para eliminar este archivo' });
-      }
+    const logSQL = `
+      INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+      VALUES (?, ?, 'delete', ?, ?, NOW())
+    `;
+    const logValues = [
+      Number(userId),
+      Number(fileId),
+      `El usuario eliminó el archivo ${file.filename}`,
+      req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+    ];
 
-      // 2. Marcar archivo como eliminado (status = 'eliminado')
-      const deleteSql = `UPDATE files SET status = 'eliminado' WHERE id = ?`;
-      db.query(deleteSql, [fileIdNum], (delErr) => {
-        if (delErr) {
-          console.error('Error al eliminar archivo:', delErr);
-          return res.status(500).json({ message: 'Error al eliminar archivo' });
-        }
+    try {
+      await db.query(logSQL, logValues);
+    } catch (logErr) {
+      console.error('Error al registrar auditoría:', logErr);
+    }
 
-        // 3. Registrar auditoría
-        const logSql = `
-          INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
-          VALUES (?, ?, 'delete', ?, ?, NOW())
-        `;
-        const logValues = [
-          userIdNum,
-          fileIdNum,
-          `El usuario eliminó el archivo ${file.filename}`,
-          req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
-        ];
-
-        db.query(logSql, logValues, (logErr) => {
-          if (logErr) {
-            console.error('Error al registrar auditoría:', logErr);
-            // Continuamos igual aunque falle la auditoría
-          }
-
-          return res.json({ message: 'Archivo eliminado exitosamente' });
-        });
-      });
-    });
+    return res.json({ message: 'Archivo eliminado exitosamente' });
   } catch (error) {
     console.error('Error en deleteFile:', error);
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
-exports.compartirArchivo = (req, res) => {
+exports.compartirArchivo = async (req, res) => {
   const { fileId, userIdOrigen, userIdDestino } = req.body;
-
   if (!fileId || !userIdOrigen || !userIdDestino) {
     return res.status(400).json({ message: 'Faltan datos para compartir' });
   }
 
-  const checkFileSql = `SELECT id FROM files WHERE id = ? AND uploaded_by = ?`;
-  db.query(checkFileSql, [fileId, userIdOrigen], (err, result) => {
-    if (err) return res.status(500).json({ message: 'Error al verificar archivo' });
-    if (result.length === 0) return res.status(403).json({ message: 'Archivo no válido o sin permisos' });
+  try {
+    const [result] = await db.query(
+      `SELECT id FROM files WHERE id = ? AND uploaded_by = ?`,
+      [fileId, userIdOrigen]
+    );
+    if (result.length === 0) {
+      return res.status(403).json({ message: 'Archivo no válido o sin permisos' });
+    }
 
-    const insertSql = `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, 'read')`;
-    db.query(insertSql, [fileId, userIdDestino], (err2) => {
-      if (err2) return res.status(500).json({ message: 'Error al compartir archivo' });
+    await db.query(
+      `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, 'read')`,
+      [fileId, userIdDestino]
+    );
 
-      return res.json({ message: 'Archivo compartido exitosamente' });
-    });
-  });
+    res.json({ message: 'Archivo compartido exitosamente' });
+  } catch (error) {
+    console.error('Error al compartir archivo:', error);
+    res.status(500).json({ message: 'Error al compartir archivo' });
+  }
 };
-exports.getFileContent = (req, res) => {
+
+exports.getFileContent = async (req, res) => {
   const fileId = req.query.fileId;
   if (!fileId) return res.status(400).json({ message: 'Falta fileId' });
 
-  const sql = `SELECT encrypted_content FROM files WHERE id = ? AND status = 'activo'`;
-  db.query(sql, [fileId], (err, results) => {
-    if (err) return res.status(500).json({ message: 'Error al consultar contenido' });
+  try {
+    const [results] = await db.query(
+      `SELECT encrypted_content FROM files WHERE id = ? AND status = 'activo'`,
+      [fileId]
+    );
+
     if (results.length === 0) return res.status(404).json({ message: 'Archivo no encontrado' });
 
     res.json(results[0]);
-  });
+  } catch (err) {
+    console.error('Error al consultar contenido:', err);
+    res.status(500).json({ message: 'Error al consultar contenido' });
+  }
 };

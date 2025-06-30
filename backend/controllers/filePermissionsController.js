@@ -1,6 +1,6 @@
 const db = require('../db');
 
-exports.getSharedFiles = (req, res) => {
+exports.getSharedFiles = async (req, res) => {
   const userId = req.query.userId;
 
   if (!userId) {
@@ -16,12 +16,11 @@ exports.getSharedFiles = (req, res) => {
     ORDER BY f.uploaded_at DESC
   `;
 
-  db.query(sql, [userId], (err, results) => {
-    if (err) {
-      console.error('Error al obtener archivos compartidos:', err);
-      return res.status(500).json({ message: 'Error del servidor' });
-    }
-
+  try {
+    const [results] = await db.query(sql, [userId]);
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Error al obtener archivos compartidos:', err);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
 };
