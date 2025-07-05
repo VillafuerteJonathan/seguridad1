@@ -110,10 +110,13 @@ exports.deleteFile = async (req, res) => {
 };
 
 exports.compartirArchivo = async (req, res) => {
-  const { fileId, userIdOrigen, userIdDestino } = req.body;
+  const { fileId, userIdOrigen, userIdDestino, permission } = req.body;
   if (!fileId || !userIdOrigen || !userIdDestino) {
     return res.status(400).json({ message: 'Faltan datos para compartir' });
   }
+
+  const permisosValidos = ['read', 'download', 'owner'];
+  const permisoFinal = permisosValidos.includes(permission) ? permission : 'read';
 
   try {
     const [result] = await db.query(
@@ -125,11 +128,11 @@ exports.compartirArchivo = async (req, res) => {
     }
 
     await db.query(
-      `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, 'read')`,
-      [fileId, userIdDestino]
+      `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, ?)`,
+      [fileId, userIdDestino, permisoFinal]
     );
 
-    res.json({ message: 'Archivo compartido exitosamente' });
+    res.json({ message: `Archivo compartido exitosamente con permiso '${permisoFinal}'` });
   } catch (error) {
     console.error('Error al compartir archivo:', error);
     res.status(500).json({ message: 'Error al compartir archivo' });

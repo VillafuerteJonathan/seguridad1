@@ -49,6 +49,8 @@ const MyFiles = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioDestino, setUsuarioDestino] = useState('');
   const [archivoACompartir, setArchivoACompartir] = useState(null);
+  const [tipoPermiso, setTipoPermiso] = useState('read'); // valor por defecto
+
 
   const currentUser = JSON.parse(localStorage.getItem('user'));
   const modalRef = useRef(null);
@@ -162,7 +164,8 @@ const MyFiles = () => {
         body: JSON.stringify({
           fileId: archivoACompartir.id,
           userIdOrigen: currentUser.id,
-          userIdDestino: usuarioDestino
+          userIdDestino: usuarioDestino,
+          permission: tipoPermiso,
         }),
       });
 
@@ -288,12 +291,24 @@ const MyFiles = () => {
               <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div className="modal-body">
-              <select className="form-select" onChange={e => setUsuarioDestino(e.target.value)} value={usuarioDestino}>
-                <option value="">Selecciona usuario</option>
-                {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>{u.username}</option>
-                ))}
-              </select>
+              <div className="mb-3">
+                <label className="form-label">Usuario destinatario:</label>
+                <select className="form-select" onChange={e => setUsuarioDestino(e.target.value)} value={usuarioDestino}>
+                  <option value="">Selecciona usuario</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>{u.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Tipo de permiso:</label>
+                <select className="form-select" onChange={e => setTipoPermiso(e.target.value)} value={tipoPermiso}>
+                  <option value="read">🔒 Solo visualizar</option>
+                  <option value="download">⬇️ Visualizar y descargar</option>
+                  <option value="owner">🛠️ Control total</option>
+                </select>
+              </div>
             </div>
             <div className="modal-footer">
               <button onClick={handleCompartir} className="btn btn-primary">Compartir</button>

@@ -8,7 +8,7 @@ exports.getSharedFiles = async (req, res) => {
   }
 
   const sql = `
-    SELECT f.id, f.filename, f.uploaded_at, u.username AS owner_username
+    SELECT f.id, f.filename, f.uploaded_at, u.username AS owner_username, fp.permission
     FROM file_permissions fp
     JOIN files f ON fp.file_id = f.id
     JOIN users u ON f.uploaded_by = u.id

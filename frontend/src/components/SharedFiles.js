@@ -124,6 +124,7 @@ const SharedFiles = () => {
             <tr>
               <th>Nombre</th>
               <th>Compartido por</th>
+              <th>Permisos</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -133,15 +134,24 @@ const SharedFiles = () => {
               <tr key={file.id}>
                 <td>{file.filename}</td>
                 <td>{file.owner_username}</td>
+                <td>{file.permission}</td>
                 <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                 <td>
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => abrirModal(file)}
-                  >
-                    🔓 Descifrar
-                  </button>
-                </td>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => abrirModal(file)}
+                    >
+                      🔓 Descifrar
+                    </button>
+                    {file.permission === 'owner' && (
+                      <button
+                        className="btn btn-sm btn-danger ms-2"
+                        onClick={() => alert('Aquí iría la lógica para eliminar si eres owner')}
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    )}
+                  </td>
               </tr>
             ))}
           </tbody>
@@ -177,17 +187,42 @@ const SharedFiles = () => {
               </button>
               {errorClave && <p className="text-danger mt-2">{errorClave}</p>}
               {textoDescifrado && (
-                <div className="mt-4">
-                  <strong>📄 PDF Descifrado:</strong>
-                  <iframe
-                    src={textoDescifrado}
-                    title="Archivo Descifrado"
-                    width="100%"
-                    height="600px"
-                    style={{ border: '1px solid #ccc' }}
-                  />
-                </div>
-              )}
+                  <div className="mt-4">
+                    <strong>📄 PDF Descifrado:</strong>
+
+                    {archivoSeleccionado?.permission === 'read' ? (
+                      <embed
+                        src={`${textoDescifrado}#toolbar=0&navpanes=0&scrollbar=0`}
+                        type="application/pdf"
+                        width="100%"
+                        height="600px"
+                        style={{ border: '1px solid #ccc' }}
+                      />
+                    ) : (
+                      <iframe
+                        src={textoDescifrado}
+                        title="Archivo Descifrado"
+                        width="100%"
+                        height="600px"
+                        style={{ border: '1px solid #ccc' }}
+                      />
+                    )}
+
+                    {(archivoSeleccionado?.permission === 'download' || archivoSeleccionado?.permission === 'owner') && (
+                      <div className="mt-3">
+                        <a
+                          href={textoDescifrado}
+                          className="btn btn-outline-success"
+                          download={archivoSeleccionado.filename}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          ⬇️ Descargar PDF
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">
