@@ -76,7 +76,7 @@ const Dashboard = () => {
             📄 Mis Archivos
           </button>
           <button onClick={() => setSection('shared')} style={sidebarBtnStyle}>
-            🔗 Archivos Compartidos
+            🔗 Archivos Compartidos Conmigo
          </button>
           <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
             🕵️ Auditoría

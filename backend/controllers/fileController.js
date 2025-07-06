@@ -132,7 +132,7 @@ exports.compartirArchivo = async (req, res) => {
       [fileId, userIdDestino, permisoFinal]
     );
 
-    res.json({ message: `Archivo compartido exitosamente con permiso '${permisoFinal}'` });
+    res.json({ message: 'Archivo compartido exitosamente' });
   } catch (error) {
     console.error('Error al compartir archivo:', error);
     res.status(500).json({ message: 'Error al compartir archivo' });
@@ -157,3 +157,23 @@ exports.getFileContent = async (req, res) => {
     res.status(500).json({ message: 'Error al consultar contenido' });
   }
 };
+
+exports.updateAccessLevel = async (req, res) => {
+  const { fileId, accessLevel } = req.body;
+
+  if (!fileId || !['privado', 'compartido', 'público'].includes(accessLevel)) {
+    return res.status(400).json({ message: 'Datos inválidos' });
+  }
+
+  try {
+    await db.query(
+      'UPDATE files SET access_level = ? WHERE id = ?',
+      [accessLevel, fileId]
+    );
+    res.json({ message: 'Nivel de acceso actualizado' });
+  } catch (err) {
+    console.error('Error al actualizar access_level:', err);
+    res.status(500).json({ message: 'Error al actualizar nivel de acceso' });
+  }
+};
+

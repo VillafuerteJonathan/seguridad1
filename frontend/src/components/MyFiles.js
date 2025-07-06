@@ -49,11 +49,17 @@ const MyFiles = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioDestino, setUsuarioDestino] = useState('');
   const [archivoACompartir, setArchivoACompartir] = useState(null);
-  const [tipoPermiso, setTipoPermiso] = useState('read'); // valor por defecto
-
+  const [permisosExistentes, setPermisosExistentes] = useState([]);
+  const [tipoPermiso, setTipoPermiso] = useState('read'); 
+  const [accessLevel, setAccessLevel] = useState('privado');
+  const mostrarSeccionCompartir = accessLevel === 'compartido';
+  const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
+  const [accionesPendientes, setAccionesPendientes] = useState([]);
+  const [permisosTemporales, setPermisosTemporales] = useState([]);
 
   const currentUser = JSON.parse(localStorage.getItem('user'));
   const modalRef = useRef(null);
+  
 
   useEffect(() => {
     const fetchArchivos = async () => {
@@ -70,6 +76,31 @@ const MyFiles = () => {
 
     if (currentUser?.id) fetchArchivos();
   }, [currentUser]);
+
+useEffect(() => {
+  const modalElement = document.getElementById('modalCompartir');
+  const bsModal = modalElement ? new window.bootstrap.Modal(modalElement) : null;
+
+  if (modalElement) {
+    modalElement.addEventListener('hidden.bs.modal', resetModal);
+  }
+
+  return () => {
+    if (modalElement) {
+      modalElement.removeEventListener('hidden.bs.modal', resetModal);
+    }
+  };
+}, []);
+
+
+
+useEffect(() => {
+  if (usuarios.length && permisosTemporales.length >= 0) {
+    setUsuariosDisponibles(filtrarUsuariosDisponibles(usuarios, permisosTemporales));
+  }
+}, [usuarios, permisosTemporales]);
+
+
 
   const abrirModal = (file) => {
     setArchivoSeleccionado(file);
@@ -108,6 +139,12 @@ const MyFiles = () => {
     }
   };
 
+  const filtrarUsuariosDisponibles = (todos, permisos) => {
+  const idsConPermiso = permisos.map(p => p.user_id);
+  return todos.filter(u => u.id !== currentUser.id && !idsConPermiso.includes(u.id));
+};
+
+
   const handleEliminar = async (fileId) => {
     if (!window.confirm('¿Estás seguro de eliminar este archivo? Esta acción no se puede deshacer.')) return;
 
@@ -141,40 +178,166 @@ const MyFiles = () => {
     }
   };
 
-  const handleAbrirCompartir = async (file) => {
-    setArchivoACompartir(file);
-    try {
-      const res = await fetch('http://localhost:5000/api/users');
-      const data = await res.json();
-      setUsuarios(data.filter(u => u.id !== currentUser.id));
-      const modal = new window.bootstrap.Modal(document.getElementById('modalCompartir'));
-      modal.show();
-    } catch (err) {
-      console.error('Error al cargar usuarios:', err);
+const handleAbrirCompartir = async (file) => {
+  setAccessLevel(file.access_level || 'privado');
+  setArchivoACompartir(file);
+  setUsuarioDestino('');
+  setTipoPermiso('read');
+
+  try {
+    const [usuariosRes, permisosRes] = await Promise.all([
+      fetch('http://localhost:5000/api/users'),
+      fetch(`http://localhost:5000/api/file-permissions?fileId=${file.id}`)
+    ]);
+
+    const todosLosUsuarios = await usuariosRes.json();
+    const permisos = await permisosRes.json();
+
+    setPermisosExistentes(permisos); // estado original
+    setPermisosTemporales(permisos); // copia provisional
+    setAccionesPendientes([]); // acciones por aplicar
+
+    const idsCompartidos = permisos.map(p => p.user_id);
+    setUsuarios(todosLosUsuarios.filter(u => u.id !== currentUser.id && !idsCompartidos.includes(u.id)));
+
+    const modal = new window.bootstrap.Modal(document.getElementById('modalCompartir'));
+    modal.show();
+  } catch (err) {
+    console.error('Error al cargar usuarios o permisos:', err);
+  }
+};
+
+const handleRevocar = (userId) => {
+  setPermisosTemporales(prev => prev.filter(p => p.user_id !== userId));
+
+  const usuarioRevocado = usuarios.find(u => u.id === userId);
+  if (usuarioRevocado) {
+    setUsuariosDisponibles(prev => [...prev, usuarioRevocado]);
+  }
+
+  setAccionesPendientes(prev => {
+    const eraNuevo = prev.find(a => a.userId === userId && a.tipo === 'nuevo');
+    if (eraNuevo) {
+      return prev.filter(a => a.userId !== userId);
     }
-  };
+    return [...prev, { tipo: 'revocar', userId }];
+  });
+};
 
-  const handleCompartir = async () => {
-    if (!usuarioDestino) return alert('Selecciona un usuario');
+const resetModal = () => {
+  setArchivoACompartir(null);
+  setAccessLevel('privado');
+  setUsuarioDestino('');
+  setTipoPermiso('read');
+  setPermisosTemporales([]);
+  setPermisosExistentes([]);
+  setAccionesPendientes([]);
+};
 
-    try {
-      const res = await fetch('http://localhost:5000/api/share-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileId: archivoACompartir.id,
-          userIdOrigen: currentUser.id,
-          userIdDestino: usuarioDestino,
-          permission: tipoPermiso,
-        }),
-      });
 
-      const data = await res.json();
-      alert(data.message);
-    } catch (err) {
-      console.error('Error al compartir:', err);
+const handleActualizarPermiso = (userId, newPerm) => {
+  setPermisosTemporales(prev =>
+    prev.map(p => p.user_id === userId ? { ...p, permission: newPerm } : p)
+  );
+
+  setAccionesPendientes(prev => {
+    const yaExiste = prev.find(a => a.userId === userId);
+    if (yaExiste && yaExiste.tipo === 'nuevo') {
+      // ya estaba marcado como nuevo
+      return prev.map(a => a.userId === userId ? { ...a, permission: newPerm } : a);
     }
-  };
+
+    // actualizar o crear acción de actualización
+    const otros = prev.filter(a => a.userId !== userId || a.tipo === 'revocar');
+    return [...otros, { tipo: 'actualizar', userId, permission: newPerm }];
+  });
+};
+
+
+const handleGuardarAccessLevel = async () => {
+  try {
+    // 1. Actualizar nivel de acceso
+    const res = await fetch('http://localhost:5000/api/file-access', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId: archivoACompartir.id, accessLevel }),
+    });
+
+    if (!res.ok) return alert('Error al actualizar nivel de acceso');
+
+    // 2. Si se vuelve privado o público, eliminar permisos
+    if (accessLevel === 'privado' || accessLevel === 'público') {
+      for (const p of permisosTemporales) {
+        await fetch('http://localhost:5000/api/file-permission', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId: archivoACompartir.id, userId: p.user_id }),
+        });
+      }
+      setPermisosExistentes([]);
+    } else {
+      // 3. Ejecutar acciones pendientes
+      for (const a of accionesPendientes) {
+        if (a.tipo === 'nuevo') {
+          await fetch('http://localhost:5000/api/share-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId: archivoACompartir.id,
+              userIdOrigen: currentUser.id,
+              userIdDestino: a.userId,
+              permission: a.permission
+            })
+          });
+        } else if (a.tipo === 'actualizar') {
+          await fetch('http://localhost:5000/api/file-permission', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId, permission: a.permission })
+          });
+        } else if (a.tipo === 'revocar') {
+          await fetch('http://localhost:5000/api/file-permission', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId })
+          });
+        }
+      }
+
+      setPermisosExistentes(permisosTemporales);
+    }
+
+    alert('Cambios guardados exitosamente');
+    const modal = window.bootstrap.Modal.getInstance(document.getElementById('modalCompartir'));
+    if (modal) modal.hide();
+
+  } catch (err) {
+    console.error('Error al guardar:', err);
+    alert('Error al guardar los cambios');
+  }
+};
+
+
+const handleCompartir = () => {
+  if (!usuarioDestino) return alert('Selecciona un usuario');
+
+  const nuevo = usuarios.find(u => u.id === parseInt(usuarioDestino));
+  if (!nuevo) return;
+  setPermisosTemporales(prev => [
+    ...prev,
+    { user_id: nuevo.id, username: nuevo.username, permission: tipoPermiso }
+  ]);
+  setAccionesPendientes(prev => [
+    ...prev,
+    { tipo: 'nuevo', userId: nuevo.id, permission: tipoPermiso }
+  ]);
+  setUsuariosDisponibles(prev => prev.filter(u => u.id !== nuevo.id));
+  setUsuarioDestino('');
+  setTipoPermiso('read');
+};
+
+
+
 
   return (
     <div>
@@ -189,6 +352,7 @@ const MyFiles = () => {
             <tr>
               <th>Nombre</th>
               <th>Subido en</th>
+              <th>Nivel de Acceso</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -197,6 +361,7 @@ const MyFiles = () => {
               <tr key={file.id}>
                 <td>{file.filename}</td>
                 <td>{new Date(file.uploaded_at).toLocaleString()}</td>
+                <td>{file.access_level}</td>
                 <td>
                   <button 
                     className="btn btn-sm btn-primary me-2" 
@@ -291,28 +456,106 @@ const MyFiles = () => {
               <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div className="modal-body">
-              <div className="mb-3">
-                <label className="form-label">Usuario destinatario:</label>
-                <select className="form-select" onChange={e => setUsuarioDestino(e.target.value)} value={usuarioDestino}>
-                  <option value="">Selecciona usuario</option>
-                  {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>{u.username}</option>
-                  ))}
-                </select>
+                <div className="mb-3">
+                  <label className="form-label">Nivel de compartición:</label>
+                  <select
+                    className="form-select"
+                    value={accessLevel}
+                    onChange={(e) => setAccessLevel(e.target.value)} // solo actualiza el estado local
+                  >
+                    <option value="privado">🔒 Privado</option>
+                    <option value="compartido">👥 Compartido</option>
+                    <option value="público">🌐 Público</option>
+                  </select>
+                </div>
+
+                {mostrarSeccionCompartir && (
+                  <>
+                    <div className="mb-3">
+                      <label className="form-label">Usuario destinatario:</label>
+                      <select className="form-select" onChange={e => setUsuarioDestino(e.target.value)} value={usuarioDestino}>
+                        <option value="">Selecciona usuario</option>
+                        {usuariosDisponibles.map((u) => (
+                          <option key={u.id} value={u.id}>{u.username}</option>
+                        ))}
+                      </select>
+
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label">Tipo de permiso:</label>
+                      <select
+                        className="form-select"
+                        onChange={e => setTipoPermiso(e.target.value)}
+                        value={tipoPermiso}
+                      >
+                        <option value="read">🔒 Solo visualizar</option>
+                        <option value="download">⬇️ Visualizar y descargar</option>
+                        <option value="owner">📤 Descargar y gestionar acceso</option>
+                      </select>
+                    </div>
+
+                    <div className="d-grid gap-2">
+                      <button onClick={handleCompartir} className="btn btn-success">
+                        ➕ Compartir con usuario
+                      </button>
+                    </div>
+
+
+
+                    {permisosTemporales.length > 0 && (
+                      <div className="mt-4">
+                        <h6>Usuarios con acceso:</h6>
+                        <table className="table table-sm">
+                          <thead>
+                            <tr>
+                              <th>Usuario</th>
+                              <th>Permiso</th>
+                              <th>Acción</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {permisosTemporales.map((p) => (
+                              <tr key={p.user_id}>
+                                <td>{p.username}</td>
+                                <td>
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={p.permission}
+                                    onChange={(e) => handleActualizarPermiso(p.user_id, e.target.value)}
+                                  >
+                                    <option value="read">🔒 Solo visualizar</option>
+                                    <option value="download">⬇️ Visualizar y descargar</option>
+                                    <option value="owner">📤 Descargar y gestionar acceso</option>
+                                  </select>
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => handleRevocar(p.user_id)}
+                                  >
+                                    ❌
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                  </>
+                )}
               </div>
 
-              <div>
-                <label className="form-label">Tipo de permiso:</label>
-                <select className="form-select" onChange={e => setTipoPermiso(e.target.value)} value={tipoPermiso}>
-                  <option value="read">🔒 Solo visualizar</option>
-                  <option value="download">⬇️ Visualizar y descargar</option>
-                  <option value="owner">🛠️ Control total</option>
-                </select>
-              </div>
-            </div>
             <div className="modal-footer">
-              <button onClick={handleCompartir} className="btn btn-primary">Compartir</button>
-              <button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button onClick={() => handleGuardarAccessLevel()} className="btn btn-primary">
+                Aceptar
+              </button>
+              <button className="btn btn-secondary" data-bs-dismiss="modal" onClick={resetModal}>
+                Cancelar
+              </button>
+
             </div>
           </div>
         </div>

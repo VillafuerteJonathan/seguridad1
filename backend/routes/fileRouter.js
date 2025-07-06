@@ -11,6 +11,8 @@ router.get('/user-files', fileController.getUserFiles);
 router.delete('/delete-file', fileController.deleteFile);
 router.post('/share-file', fileController.compartirArchivo);
 router.get('/file-content', fileController.getFileContent);
+router.put('/file-access', fileController.updateAccessLevel);
+
 
 
 

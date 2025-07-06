@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { aesDecrypt, stringToBytes } from '../utils/aes128';
+import Compartir from './Compartir'; 
+
 
 const chunkArray = (arr, size = 16) => {
   const chunks = [];
@@ -46,22 +48,32 @@ const SharedFiles = () => {
   const [errorClave, setErrorClave] = useState('');
   const modalRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem('user'));
+  const [archivosPublicos, setArchivosPublicos] = useState([]);
+
 
   useEffect(() => {
-    const fetchCompartidos = async () => {
-      try {
-        const res = await fetch(`http://localhost:5000/api/shared-files?userId=${currentUser.id}`);
-        const data = await res.json();
-        setArchivos(data);
-      } catch (err) {
-        console.error('Error al cargar archivos compartidos:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchCompartidos = async () => {
+    try {
+      const [sharedRes, publicRes] = await Promise.all([
+        fetch(`http://localhost:5000/api/shared-files?userId=${currentUser.id}`),
+        fetch(`http://localhost:5000/api/public-files`)
+      ]);
 
-    if (currentUser?.id) fetchCompartidos();
-  }, [currentUser]);
+      const sharedData = await sharedRes.json();
+      const publicData = await publicRes.json();
+
+      setArchivos(sharedData);
+      setArchivosPublicos(publicData);
+    } catch (err) {
+      console.error('Error al cargar archivos compartidos o públicos:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (currentUser?.id) fetchCompartidos();
+}, [currentUser]);
+
 
   const abrirModal = async (file) => {
     try {
@@ -81,6 +93,19 @@ const SharedFiles = () => {
       console.error('Error al obtener contenido cifrado:', err);
     }
   };
+  const traducirPermiso = (perm) => {
+    switch (perm) {
+      case 'read':
+        return '🔒 Solo visualizar';
+      case 'download':
+        return '⬇️ Visualizar y descargar';
+      case 'owner':
+        return '📤 Descargar y gestionar acceso';
+      default:
+        return perm;
+    }
+  };
+
 
   const handleDescifrar = () => {
     setErrorClave('');
@@ -113,7 +138,7 @@ const SharedFiles = () => {
 
   return (
     <div>
-      <h3>🔗 Archivos Compartidos Contigo</h3>
+      <h3>🔗 Archivos Compartidos Conmigo</h3>
       {loading ? (
         <p>Cargando archivos compartidos...</p>
       ) : archivos.length === 0 ? (
@@ -124,7 +149,7 @@ const SharedFiles = () => {
             <tr>
               <th>Nombre</th>
               <th>Compartido por</th>
-              <th>Permisos</th>
+              <th>Permiso</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -134,7 +159,7 @@ const SharedFiles = () => {
               <tr key={file.id}>
                 <td>{file.filename}</td>
                 <td>{file.owner_username}</td>
-                <td>{file.permission}</td>
+                <td>{traducirPermiso(file.permission)}</td>
                 <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                 <td>
                     <button
@@ -144,19 +169,50 @@ const SharedFiles = () => {
                       🔓 Descifrar
                     </button>
                     {file.permission === 'owner' && (
-                      <button
-                        className="btn btn-sm btn-danger ms-2"
-                        onClick={() => alert('Aquí iría la lógica para eliminar si eres owner')}
-                      >
-                        🗑️ Eliminar
-                      </button>
+                      <Compartir archivo={file} currentUser={currentUser} />
                     )}
+
+
                   </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      {archivosPublicos.length > 0 && (
+        <>
+          <h4 className="mt-5">🌍 Archivos Públicos</h4>
+          <table className="table table-bordered table-hover">
+            <thead className="table-dark">
+              <tr>
+                <th>Nombre</th>
+                <th>Compartido por</th>
+                <th>Fecha</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {archivosPublicos.map((file) => (
+                <tr key={`pub-${file.id}`}>
+                  <td>{file.filename}</td>
+                  <td>{file.owner_username}</td>
+                  <td>{new Date(file.uploaded_at).toLocaleString()}</td>
+                  <td>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => abrirModal(file)}
+                    >
+                      🔓 Descifrar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
 
       {/* Modal de descifrado */}
       <div
