@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback,  useState, useEffect, useRef } from 'react';
 import { aesDecrypt, stringToBytes } from '../utils/aes128';
 
 // Helpers
@@ -49,7 +49,7 @@ const MyFiles = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [usuarioDestino, setUsuarioDestino] = useState('');
   const [archivoACompartir, setArchivoACompartir] = useState(null);
-  const [permisosExistentes, setPermisosExistentes] = useState([]);
+  const [, setPermisosExistentes] = useState([]);
   const [tipoPermiso, setTipoPermiso] = useState('read'); 
   const [accessLevel, setAccessLevel] = useState('privado');
   const mostrarSeccionCompartir = accessLevel === 'compartido';
@@ -59,7 +59,11 @@ const MyFiles = () => {
 
   const currentUser = JSON.parse(localStorage.getItem('user'));
   const modalRef = useRef(null);
-  
+
+  const filtrarUsuariosDisponibles = useCallback((todos, permisos) => {
+    const idsConPermiso = permisos.map(p => p.user_id);
+    return todos.filter(u => u.id !== currentUser.id && !idsConPermiso.includes(u.id));
+  }, [currentUser.id]);
 
   useEffect(() => {
     const fetchArchivos = async () => {
@@ -79,7 +83,7 @@ const MyFiles = () => {
 
 useEffect(() => {
   const modalElement = document.getElementById('modalCompartir');
-  const bsModal = modalElement ? new window.bootstrap.Modal(modalElement) : null;
+  /*const bsModal = modalElement ? new window.bootstrap.Modal(modalElement) : null;*/
 
   if (modalElement) {
     modalElement.addEventListener('hidden.bs.modal', resetModal);
@@ -93,14 +97,11 @@ useEffect(() => {
 }, []);
 
 
-
-useEffect(() => {
-  if (usuarios.length && permisosTemporales.length >= 0) {
-    setUsuariosDisponibles(filtrarUsuariosDisponibles(usuarios, permisosTemporales));
-  }
-}, [usuarios, permisosTemporales]);
-
-
+  useEffect(() => {
+    if (usuarios.length && permisosTemporales.length >= 0) {
+      setUsuariosDisponibles(filtrarUsuariosDisponibles(usuarios, permisosTemporales));
+    }
+  }, [usuarios, permisosTemporales, filtrarUsuariosDisponibles]);
 
   const abrirModal = (file) => {
     setArchivoSeleccionado(file);
@@ -129,21 +130,17 @@ useEffect(() => {
         body: JSON.stringify({
           userId: currentUser.id,
           fileId: archivoSeleccionado.id,
-          action: 'Descifrar archivo',
-          description: `Usuario ${currentUser.id} descifró archivo ${archivoSeleccionado.id}`
+          action: 'decrypt',
+          description: `Usuario ${currentUser.id} descifró el archivo ${archivoSeleccionado.id}`
         }),
       });
+      const disponibles = filtrarUsuariosDisponibles(usuarios, permisosTemporales);
+      console.log('Usuarios disponibles:', disponibles);
     } catch (err) {
       console.error(err);
       setErrorClave('❌ Clave incorrecta o error al descifrar');
     }
   };
-
-  const filtrarUsuariosDisponibles = (todos, permisos) => {
-  const idsConPermiso = permisos.map(p => p.user_id);
-  return todos.filter(u => u.id !== currentUser.id && !idsConPermiso.includes(u.id));
-};
-
 
   const handleEliminar = async (fileId) => {
     if (!window.confirm('¿Estás seguro de eliminar este archivo? Esta acción no se puede deshacer.')) return;
@@ -260,7 +257,7 @@ const handleGuardarAccessLevel = async () => {
     const res = await fetch('http://localhost:5000/api/file-access', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileId: archivoACompartir.id, accessLevel }),
+      body: JSON.stringify({ fileId: archivoACompartir.id, accessLevel, userId: currentUser.id }),
     });
 
     if (!res.ok) return alert('Error al actualizar nivel de acceso');
@@ -271,7 +268,8 @@ const handleGuardarAccessLevel = async () => {
         await fetch('http://localhost:5000/api/file-permission', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileId: archivoACompartir.id, userId: p.user_id }),
+          body: JSON.stringify({ fileId: archivoACompartir.id, userId: p.user_id,
+        adminId: currentUser.id  }),
         });
       }
       setPermisosExistentes([]);
@@ -293,13 +291,13 @@ const handleGuardarAccessLevel = async () => {
           await fetch('http://localhost:5000/api/file-permission', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId, permission: a.permission })
+            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId, permission: a.permission, adminId: currentUser.id })
           });
         } else if (a.tipo === 'revocar') {
           await fetch('http://localhost:5000/api/file-permission', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId })
+            body: JSON.stringify({ fileId: archivoACompartir.id, userId: a.userId, adminId: currentUser.id  })
           });
         }
       }

@@ -75,24 +75,27 @@ const SharedFiles = () => {
 }, [currentUser]);
 
 
-  const abrirModal = async (file) => {
-    try {
-      const res = await fetch(`http://localhost:5000/api/file-content?fileId=${file.id}`);
-      const data = await res.json();
-      if (res.ok && data.encrypted_content) {
-        setArchivoSeleccionado({ ...file, encrypted_content: data.encrypted_content });
-        setClaveDescifrado('');
-        setTextoDescifrado(null);
-        setErrorClave('');
-        const modal = new window.bootstrap.Modal(modalRef.current);
-        modal.show();
-      } else {
-        alert('No se pudo obtener el contenido cifrado');
-      }
-    } catch (err) {
-      console.error('Error al obtener contenido cifrado:', err);
+const abrirModal = async (file) => {
+  const currentUser = JSON.parse(localStorage.getItem('user')); 
+  const userId = currentUser?.id;
+
+  try {
+    const res = await fetch(`http://localhost:5000/api/file-content?fileId=${file.id}&userId=${userId}`);
+    const data = await res.json();
+    if (res.ok && data.encrypted_content) {
+      setArchivoSeleccionado({ ...file, encrypted_content: data.encrypted_content });
+      setClaveDescifrado('');
+      setTextoDescifrado(null);
+      setErrorClave('');
+      const modal = new window.bootstrap.Modal(modalRef.current);
+      modal.show();
+    } else {
+      alert('No se pudo obtener el contenido cifrado');
     }
-  };
+  } catch (err) {
+    console.error('Error al obtener contenido cifrado:', err);
+  }
+};
   const traducirPermiso = (perm) => {
     switch (perm) {
       case 'read':
@@ -126,8 +129,8 @@ const SharedFiles = () => {
         body: JSON.stringify({
           userId: currentUser.id,
           fileId: archivoSeleccionado.id,
-          action: 'Descifrar archivo compartido',
-          description: `Usuario ${currentUser.id} descifró un archivo compartido (${archivoSeleccionado.id})`
+          action: 'decrypt',
+          description: `Usuario ${currentUser.id} descifró el archivo compartido ${archivoSeleccionado.id}`
         }),
       });
     } catch (err) {

@@ -35,20 +35,47 @@ router.post('/log-action', async (req, res) => {
 });
 
 router.get('/audit-logs', async (req, res) => {
-  const userId = req.query.userId;
+  const { userId, role } = req.query;
 
-  if (!userId) {
-    return res.status(400).json({ message: 'Falta el userId en la consulta' });
+  if (!userId || !role) {
+    return res.status(400).json({ message: 'Faltan parámetros: userId o role' });
   }
 
   try {
-    const sql = 'SELECT * FROM audit_logs WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100';
-    const [results] = await pool.query(sql, [userId]);
+    let sql;
+    let params;
+
+    if (role === 'admin') {
+      sql = `
+        SELECT a.*, u.username, f.filename
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        LEFT JOIN files f ON a.file_id = f.id
+        ORDER BY a.timestamp DESC
+        LIMIT 100
+      `;
+      params = [];
+    } else {
+      sql = `
+        SELECT a.*, u.username, f.filename
+        FROM audit_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        LEFT JOIN files f ON a.file_id = f.id
+        WHERE a.user_id = ?
+        ORDER BY a.timestamp DESC
+        LIMIT 100
+      `;
+      params = [userId];
+    }
+
+    const [results] = await pool.query(sql, params);
     res.status(200).json(results);
   } catch (err) {
     console.error('Error al obtener logs de auditoría:', err);
     res.status(500).json({ message: 'Error al obtener registros de auditoría' });
   }
 });
+
+
 
 module.exports = router;

@@ -54,6 +54,15 @@ exports.getUserFiles = async (req, res) => {
       WHERE uploaded_by = ? AND status = 'activo'
       ORDER BY uploaded_at DESC
     `, [userId]);
+/*
+    const logSQL = `
+      INSERT INTO audit_logs (user_id, action, description, ip_address, timestamp)
+      VALUES (?, 'view', ?, ?, NOW())
+    `;
+    const ip = req.ip || req.headers['x-forwarded-for'] || 'IP no disponible';
+    const description = `El usuario visualizó la lista de sus archivos`;
+
+    await db.query(logSQL, [userId, description, ip]);*/
 
     res.json(results);
   } catch (err) {
@@ -120,17 +129,36 @@ exports.compartirArchivo = async (req, res) => {
 
   try {
     const [result] = await db.query(
-      `SELECT id FROM files WHERE id = ? AND uploaded_by = ?`,
+      `SELECT id, filename FROM files WHERE id = ? AND uploaded_by = ?`,
       [fileId, userIdOrigen]
     );
     if (result.length === 0) {
       return res.status(403).json({ message: 'Archivo no válido o sin permisos' });
     }
 
+    const archivo = result[0];
+
     await db.query(
       `INSERT INTO file_permissions (file_id, user_id, permission) VALUES (?, ?, ?)`,
       [fileId, userIdDestino, permisoFinal]
     );
+
+    const logSQL = `
+      INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+      VALUES (?, ?, 'share', ?, ?, NOW())
+    `;
+    const logValues = [
+      Number(userIdOrigen),
+      Number(fileId),
+      `Compartió el archivo '${archivo.filename}' con el usuario ID ${userIdDestino} con permiso '${permisoFinal}'`,
+      req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+    ];
+
+    try {
+      await db.query(logSQL, logValues);
+    } catch (logErr) {
+      console.error('Error al registrar auditoría:', logErr);
+    }
 
     res.json({ message: 'Archivo compartido exitosamente' });
   } catch (error) {
@@ -159,21 +187,55 @@ exports.getFileContent = async (req, res) => {
 };
 
 exports.updateAccessLevel = async (req, res) => {
-  const { fileId, accessLevel } = req.body;
+  const { fileId, accessLevel, userId } = req.body;
 
   if (!fileId || !['privado', 'compartido', 'público'].includes(accessLevel)) {
     return res.status(400).json({ message: 'Datos inválidos' });
   }
 
   try {
+    const [result] = await db.query(
+      'SELECT filename, access_level FROM files WHERE id = ?',
+      [fileId]
+    );
+
+    if (result.length === 0) {
+      return res.status(404).json({ message: 'Archivo no encontrado' });
+    }
+
+    const { filename, access_level: currentLevel } = result[0];
+
+    if (currentLevel === accessLevel) {
+      return res.status(200).json({ message: 'El nivel de acceso no ha cambiado' });
+    }
+
     await db.query(
       'UPDATE files SET access_level = ? WHERE id = ?',
       [accessLevel, fileId]
     );
+
+    const logSQL = `
+      INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+      VALUES (?, ?, 'change_access_level', ?, ?, NOW())
+    `;
+    const logValues = [
+      Number(userId),
+      Number(fileId),
+      `Cambió el nivel de acceso del archivo "${filename}" de "${currentLevel}" a "${accessLevel}"`,
+      req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+    ];
+
+    try {
+      await db.query(logSQL, logValues);
+    } catch (logErr) {
+      console.error('Error al registrar auditoría de access_level:', logErr);
+    }
+
     res.json({ message: 'Nivel de acceso actualizado' });
   } catch (err) {
     console.error('Error al actualizar access_level:', err);
     res.status(500).json({ message: 'Error al actualizar nivel de acceso' });
   }
 };
+
 

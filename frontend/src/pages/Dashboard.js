@@ -86,11 +86,9 @@ const Dashboard = () => {
             </button>
           )}
 
-          {/* {currentUser?.role === 'admin' && (*/}
-            <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
-              🕵️ Auditoría
-            </button>
-          {/* )}*/}
+          <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
+            🕵️ Auditoría
+          </button>
 
           <button onClick={() => setSection('profile')} style={sidebarBtnStyle}>
             👤 Perfil
@@ -106,7 +104,7 @@ const Dashboard = () => {
           {section === 'myfiles' && <MyFiles />}
           {section === 'shared' && <SharedFiles />}
           {section === 'admin' && currentUser?.role === 'admin' && <UserPanel />}
-          {section === 'audit' && <AuditLogs logs={auditLogs} />}
+          {section === 'audit' && <AuditLogs />}
           {/*{section === 'audit' && currentUser?.role === 'admin' && <AuditLogs logs={auditLogs} />}*/}
           {section === 'profile' && <Profile user={currentUser} />}
         </main>

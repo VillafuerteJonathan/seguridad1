@@ -21,12 +21,13 @@ const UserPanel = () => {
   };
 
   const handleConfirmarCambio = async () => {
+    const currentUser = JSON.parse(localStorage.getItem('user'));
     if (!usuarioSeleccionado || !nuevoRol) return;
     try {
       const res = await fetch('http://localhost:5000/auth/update-role', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: usuarioSeleccionado.id, newRole: nuevoRol }),
+        body: JSON.stringify({ userId: usuarioSeleccionado.id, newRole: nuevoRol,adminId: currentUser?.id }),
       });
 
       if (res.ok) {

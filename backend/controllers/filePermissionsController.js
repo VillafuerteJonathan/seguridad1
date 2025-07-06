@@ -18,6 +18,16 @@ exports.getSharedFiles = async (req, res) => {
 
   try {
     const [results] = await db.query(sql, [userId]);
+    /*
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, description, ip_address, timestamp)
+      VALUES (?, 'view', ?, ?, NOW())`,
+      [
+        Number(userId),
+        'El usuario visualizó los archivos compartidos con él',
+        req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+      ]
+    );*/
     res.json(results);
   } catch (err) {
     console.error('Error al obtener archivos compartidos:', err);
@@ -61,6 +71,20 @@ exports.revokePermission = async (req, res) => {
       [fileId, userId]
     );
 
+    const adminId = req.body.adminId || null;
+    if (adminId) {
+      await db.query(
+        `INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+         VALUES (?, ?, 'delete', ?, ?, NOW())`,
+        [
+          Number(adminId),
+          Number(fileId),
+          `El usuario ${adminId} revocó acceso al archivo ${fileId} para el usuario ${userId}`,
+          req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+        ]
+      );
+    }
+
     res.json({ message: 'Permiso revocado correctamente' });
   } catch (err) {
     console.error('Error al revocar permiso:', err);
@@ -69,9 +93,9 @@ exports.revokePermission = async (req, res) => {
 };
 
 exports.updatePermission = async (req, res) => {
-  const { fileId, userId, permission } = req.body;
+  const { fileId, userId, permission, adminId } = req.body;
 
-  if (!fileId || !userId || !permission) {
+  if (!fileId || !userId || !permission || !adminId) {
     return res.status(400).json({ message: 'Faltan datos para actualizar permiso' });
   }
 
@@ -84,6 +108,17 @@ exports.updatePermission = async (req, res) => {
     await db.query(
       `UPDATE file_permissions SET permission = ? WHERE file_id = ? AND user_id = ?`,
       [permission, fileId, userId]
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
+       VALUES (?, ?, 'change_permission', ?, ?, NOW())`,
+      [
+        Number(adminId),
+        Number(fileId),
+        `El usuario actualizó el permiso del usuario ${userId} a "${permission}"`,
+        req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+      ]
     );
 
     res.json({ message: 'Permiso actualizado correctamente' });
