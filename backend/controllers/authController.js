@@ -3,9 +3,10 @@ const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 
 const register = async (req, res) => {
-  const { username, email, password, role } = req.body;
+  const { username, email, password } = req.body;
+  const role = 'user'; 
 
-  if (!username || !email || !password || !role) {
+  if (!username || !email || !password) {
     return res.status(400).json({ message: 'Todos los campos son obligatorios' });
   }
 
@@ -39,4 +40,21 @@ const register = async (req, res) => {
   }
 };
 
-module.exports = { register };
+const updateUserRole = async (req, res) => {
+  const { userId, newRole } = req.body;
+
+  if (!['user', 'admin'].includes(newRole)) {
+    return res.status(400).json({ message: 'Rol inválido' });
+  }
+
+  try {
+    await db.query('UPDATE users SET role = ? WHERE id = ?', [newRole, userId]);
+    res.status(200).json({ message: 'Rol actualizado correctamente' });
+  } catch (err) {
+    console.error('Error al actualizar el rol:', err);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+
+module.exports = { register, updateUserRole };

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Sidebar = ({ filesCount = 0, onNavigate }) => {
+const Sidebar = ({ filesCount = 0, onNavigate, currentUser }) => {
   // onNavigate es una función callback para cambiar sección, ejemplo: (section) => {}
   // Puedes manejar la selección activa con estado en el componente padre o usar React Router si quieres.
 
@@ -83,6 +83,30 @@ const Sidebar = ({ filesCount = 0, onNavigate }) => {
         <span className="material-icons" aria-hidden="true">share</span>
         <span>Archivos Compartidos</span>
       </a>
+
+      {currentUser?.role === 'admin' && (
+      <a
+        href="#admin"
+        className={`nav-item ${activeSection === 'admin' ? 'active' : ''}`}
+        data-section="admin"
+        tabIndex={0}
+        onClick={e => {
+          e.preventDefault();
+          handleClick('admin');
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick('admin');
+          }
+        }}
+        aria-current={activeSection === 'admin' ? 'page' : undefined}
+      >
+        <span className="material-icons" aria-hidden="true">admin_panel_settings</span>
+        <span>Panel de Usuarios</span>
+      </a>
+    )}
+
 
       <a
         href="#audit"

@@ -6,6 +6,8 @@ import SharedFiles from '../components/SharedFiles';
 import Profile from '../components/Profile';
 import AuditLogs from '../components/AuditLogs';
 import Toast from '../components/Toast';
+import UserPanel from '../components/UserPanel';
+
 
 const sidebarBtnStyle = {
   background: 'none',
@@ -78,9 +80,18 @@ const Dashboard = () => {
           <button onClick={() => setSection('shared')} style={sidebarBtnStyle}>
             🔗 Archivos Compartidos Conmigo
          </button>
-          <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
-            🕵️ Auditoría
-          </button>
+         {currentUser?.role === 'admin' && (
+            <button onClick={() => setSection('admin')} style={sidebarBtnStyle}>
+              👮 Panel de Usuarios
+            </button>
+          )}
+
+          {/* {currentUser?.role === 'admin' && (*/}
+            <button onClick={() => setSection('audit')} style={sidebarBtnStyle}>
+              🕵️ Auditoría
+            </button>
+          {/* )}*/}
+
           <button onClick={() => setSection('profile')} style={sidebarBtnStyle}>
             👤 Perfil
           </button>
@@ -94,7 +105,9 @@ const Dashboard = () => {
           {section === 'upload' && <UploadForm user={currentUser} />}
           {section === 'myfiles' && <MyFiles />}
           {section === 'shared' && <SharedFiles />}
+          {section === 'admin' && currentUser?.role === 'admin' && <UserPanel />}
           {section === 'audit' && <AuditLogs logs={auditLogs} />}
+          {/*{section === 'audit' && currentUser?.role === 'admin' && <AuditLogs logs={auditLogs} />}*/}
           {section === 'profile' && <Profile user={currentUser} />}
         </main>
       </div>
