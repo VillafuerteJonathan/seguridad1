@@ -50,6 +50,37 @@ const UserPanel = () => {
       setNuevoRol('');
     }
   };
+  const toggleAcceso = async (user) => {
+    const nuevoEstado = user.can_login ? 0 : 1;
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+
+    try {
+      const res = await fetch('http://localhost:5000/auth/update-login-permission', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          canLogin: nuevoEstado,
+          adminId: currentUser?.id,
+        }),
+      });
+
+      if (res.ok) {
+        setUsers(prev =>
+          prev.map(u =>
+            u.id === user.id ? { ...u, can_login: nuevoEstado } : u
+          )
+        );
+        alert(`Acceso ${nuevoEstado ? 'habilitado' : 'deshabilitado'} para ${user.username}`);
+      } else {
+        alert('Error al actualizar acceso');
+      }
+    } catch (err) {
+      console.error('Error al actualizar acceso:', err);
+      alert('Error de red o del servidor');
+    }
+  };
+
 
   return (
     <div>
@@ -63,6 +94,7 @@ const UserPanel = () => {
               <th>Usuario</th>
               <th>Email</th>
               <th>Rol</th>
+              <th>Acceso</th>
             </tr>
           </thead>
           <tbody>
@@ -79,6 +111,14 @@ const UserPanel = () => {
                     <option value="user">Usuario</option>
                     <option value="admin">Administrador</option>
                   </select>
+                </td>
+                <td>
+                  <button
+                    className={`btn btn-sm ${u.can_login ? 'btn-success' : 'btn-secondary'}`}
+                    onClick={() => toggleAcceso(u)}
+                  >
+                    {u.can_login ? '✅ Habilitado' : '🚫 Deshabilitado'}
+                  </button>
                 </td>
               </tr>
             ))}

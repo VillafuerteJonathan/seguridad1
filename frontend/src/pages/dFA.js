@@ -5,18 +5,16 @@ import { useLocation, useNavigate } from 'react-router-dom';
 const TwoFA = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { qrCode, email } = location.state || {};
+  const { qrCode, email, fromRegister } = location.state || {};
   const [twoFAToken, setTwoFAToken] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Verificar si los datos necesarios están presentes
   useEffect(() => {
-    if (!email) {
-      // Si no hay qrCode o email, redirigir al usuario a la página de inicio de sesión
-      navigate('/');
-    }
-  }, [qrCode, email, navigate]);
+  if (!email) {
+    navigate('/');
+  }
+}, [qrCode, email, navigate]);
 
 
   const handle2FAVerification = async (e) => {
@@ -40,7 +38,13 @@ const TwoFA = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
        
-      navigate('/home');
+      if (fromRegister) {
+        alert('✅ Tu cuenta fue registrada correctamente. Ahora debes esperar que un administrador la habilite.');
+        navigate('/');
+      } else {
+        navigate('/home');
+      }
+
     } catch (error) {
       if (error.response) {
         const { status, data } = error.response;

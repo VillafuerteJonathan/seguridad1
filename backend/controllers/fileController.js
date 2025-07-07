@@ -1,4 +1,5 @@
 const db = require('../db');
+const { firmarBuffer } = require('../utils/signUtils');
 
 exports.uploadFile = async (req, res) => {
   try {
@@ -14,11 +15,21 @@ exports.uploadFile = async (req, res) => {
 
     const ext = '.' + filename.split('.').pop();
 
+    // Firmar el contenido cifrado
+    const bufferCifrado = Buffer.from(content, 'base64');
+    const signature = firmarBuffer(bufferCifrado); // Genera la firma en base64
+
     const insertFileSQL = `
-      INSERT INTO files (filename, encrypted_content, uploaded_by, original_extension, uploaded_at, access_level, status)
-      VALUES (?, ?, ?, ?, NOW(), 'privado', 'activo')
+      INSERT INTO files (filename, encrypted_content, uploaded_by, original_extension, uploaded_at, access_level, status, signature)
+      VALUES (?, ?, ?, ?, NOW(), 'privado', 'activo', ?)
     `;
-    const [result] = await db.query(insertFileSQL, [filename, content, userObj.id, ext]);
+    const [result] = await db.query(insertFileSQL, [
+      filename,
+      content,
+      userObj.id,
+      ext,
+      signature,
+    ]);
 
     const logSQL = `
       INSERT INTO audit_logs (user_id, file_id, action, description, ip_address, timestamp)
@@ -36,10 +47,10 @@ exports.uploadFile = async (req, res) => {
       console.error('Error al registrar auditoría:', logErr);
     }
 
-    return res.json({ message: 'Archivo subido exitosamente', fileId: result.insertId });
-  } catch (error) {
-    console.error('Error en uploadFile:', error);
-    return res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(200).json({ message: 'Archivo subido y firmado correctamente.' });
+  } catch (err) {
+    console.error('Error en uploadFile:', err);
+    res.status(500).json({ message: 'Error interno del servidor.' });
   }
 };
 

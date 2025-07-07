@@ -12,6 +12,7 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.8.4",
     "bootstrap": "^5.3.3",
+    "crypto-js": "^4.2.0",
     "lucide-react": "^0.483.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

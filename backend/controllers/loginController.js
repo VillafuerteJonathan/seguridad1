@@ -2,6 +2,10 @@ const db = require('../db');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const bcrypt = require('bcrypt');
+require('dotenv').config();
+const CryptoJS = require('crypto-js');
+
+const AES_SECRET = process.env.AES_SECRET_KEY;
 
 const login = async (req, res) => {
   const { email, password, token } = req.body;
@@ -11,16 +15,38 @@ const login = async (req, res) => {
   }
 
   try {
-    const [results] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const decryptedEmail = CryptoJS.AES.decrypt(email, AES_SECRET).toString(CryptoJS.enc.Utf8);
+    const decryptedPassword = CryptoJS.AES.decrypt(password, AES_SECRET).toString(CryptoJS.enc.Utf8);
 
+    const [results] = await db.query('SELECT * FROM users WHERE email = ?', [decryptedEmail]);
+    
     if (results.length === 0) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     const user = results[0];
+    const [[perm]] = await db.query(
+      'SELECT can_login FROM user_permissions WHERE user_id = ?',
+      [user.id]
+    );
 
-    // Validar contraseña (considera usar bcrypt para hash en producción)
-    const validPassword = await bcrypt.compare(password, user.password);
+    if (!perm || perm.can_login !== 1) {
+      await db.query(
+        `INSERT INTO audit_logs (user_id, action, description, ip_address, timestamp)
+        VALUES (?, 'login', ?, ?, NOW())`,
+        [
+          user.id,
+          `Intento de inicio de sesión rechazado por permisos`,
+          req.ip || req.headers['x-forwarded-for'] || 'IP no disponible',
+        ]
+      );
+      return res.status(403).json({
+        message: 'Tu cuenta aún no ha sido habilitada por un administrador.',
+      });
+    }
+
+
+    const validPassword = await bcrypt.compare(decryptedPassword, user.password);
     if (!validPassword) {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
@@ -114,7 +140,17 @@ const login = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const [results] = await db.query('SELECT id, username, email, role FROM users');
+    const [results] = await db.query(`
+      SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.role,
+        up.can_login
+      FROM users u
+      LEFT JOIN user_permissions up ON u.id = up.user_id
+    `);
+
     res.status(200).json(results);
   } catch (err) {
     console.error('Error al obtener usuarios:', err);

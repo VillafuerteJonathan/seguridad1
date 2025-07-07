@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; // Para redireccionar
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Eye, EyeOff } from 'lucide-react';
+import CryptoJS from 'crypto-js';
 
 const Registro = () => {
   // Estados para los campos del formulario
@@ -13,6 +14,7 @@ const Registro = () => {
   const [mostrarContrasenia, setMostrarContrasenia] = useState(false);
   const [mostrarConfirmarContrasenia, setMostrarConfirmarContrasenia] = useState(false);
 
+  const AES_SECRET = 'misuperclave1234567890123456';
 
 
   // Hook para redirección
@@ -29,55 +31,75 @@ const Registro = () => {
   };
 
   // Función para manejar el envío del formulario
-  const handleRegistro = async () => {
-    // Validar que las contraseñas coincidan
-    if (contrasenia !== confirmarContrasenia) {
-      alert('Las contraseñas no coinciden');
-      return;
-    }
+const handleRegistro = async () => {
+  const caracteresPeligrosos = /['";\\]/;
 
-    try {
-      // Enviar los datos al backend
-      const response = await axios.post('http://localhost:5000/auth/register', {
-        username: nombre, // Usamos "nombre" como "username"
-        email: email, // Campo "email"
-        password: contrasenia, // Campo "contrasenia"
-      });
+  if (!nombre || !email || !contrasenia || !confirmarContrasenia) {
+    alert('Todos los campos son obligatorios');
+    return;
+  }
 
-      // Redirigir al componente 2FA con los datos necesarios
-      navigate('/dFA', {
-        state: {
-          qrCode: response.data.qrCode, // Código QR
-          email: email, // Correo electrónico del usuario
-          secret: response.data.secret, // Secreto 2FA (opcional)
-        },
-      });
-    } catch (error) {
-      // Manejo de errores
-      if (error.response) {
-        // El backend respondió con un código de estado fuera del rango 2xx
-        const { status, data } = error.response;
+  if (caracteresPeligrosos.test(nombre) || caracteresPeligrosos.test(email)) {
+    alert('No se permiten caracteres especiales como comillas, punto y coma o barras invertidas');
+    return;
+  }
 
-        if (status === 400 && data.message === 'El correo electrónico ya está registrado') {
-          alert('El correo electrónico ya está registrado');
-        } else if (status === 400 && data.message === 'Todos los campos son obligatorios') {
-          alert('Todos los campos son obligatorios');
-        } else if (status === 500) {
-          alert('Error en el servidor. Inténtalo de nuevo más tarde.');
-        } else {
-          alert('Error desconocido. Inténtalo de nuevo.');
-        }
-      } else if (error.request) {
-        // La solicitud fue hecha pero no se recibió respuesta
-        alert('No se recibió respuesta del servidor. Verifica tu conexión a internet.');
+  if (nombre.length > 50) {
+    alert('El nombre es demasiado largo (máx. 50 caracteres)');
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert('Formato de correo electrónico inválido');
+    return;
+  }
+
+  if (contrasenia.length < 8) {
+    alert('La contraseña debe tener al menos 8 caracteres');
+    return;
+  }
+
+  if (contrasenia !== confirmarContrasenia) {
+    alert('Las contraseñas no coinciden');
+    return;
+  }
+  const encryptedUsername = CryptoJS.AES.encrypt(nombre, AES_SECRET).toString();
+  const encryptedEmail = CryptoJS.AES.encrypt(email, AES_SECRET).toString();
+  const encryptedPassword = CryptoJS.AES.encrypt(contrasenia, AES_SECRET).toString();
+
+  try {
+    const response = await axios.post('http://localhost:5000/auth/register', {
+      username: encryptedUsername,
+      email: encryptedEmail,
+      password: encryptedPassword,
+    });
+
+    navigate('/dFA', {
+      state: {
+        qrCode: response.data.qrCode,
+        email: email,
+        secret: response.data.secret,
+        fromRegister: true
+      },
+    });
+  } catch (error) {
+    if (error.response) {
+      const { status, data } = error.response;
+      if (status === 400 && data.message === 'El correo electrónico ya está registrado') {
+        alert('El correo electrónico ya está registrado');
+      } else if (status === 400 && data.message === 'Todos los campos son obligatorios') {
+        alert('Todos los campos son obligatorios');
       } else {
-        // Algo más causó el error
-        alert('Error al realizar la solicitud. Inténtalo de nuevo.');
+        alert('Error: ' + data.message);
       }
-
-      console.error(error); // Muestra el error en la consola para depuración
+    } else {
+      alert('Error de red o del servidor');
     }
-  };
+    console.error(error);
+  }
+};
+
 
   // Mostrar el formulario de registro
   return (

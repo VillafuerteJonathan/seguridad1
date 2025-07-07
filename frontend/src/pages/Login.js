@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Eye, EyeOff } from 'react-feather';
+import CryptoJS from 'crypto-js';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -12,47 +13,67 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  const AES_SECRET = 'misuperclave1234567890123456';
+
   const toggleMostrarContrasenia = () => {
     setMostrarContrasenia(!mostrarContrasenia);
   };
 
-  const handleLogin = async (e) => {
+    const handleLogin = async (e) => {
     e.preventDefault();
+
+    const caracteresPeligrosos = /['";\\]/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!email || !password) {
       setError('Todos los campos son obligatorios');
       return;
     }
 
+    if (caracteresPeligrosos.test(email) || caracteresPeligrosos.test(password)) {
+      setError('No se permiten caracteres especiales como comillas, punto y coma o barras invertidas');
+      return;
+    }
+
+    if (!emailRegex.test(email)) {
+      setError('Formato de correo electrónico inválido');
+      return;
+    }
+
+    if (email.length > 100) {
+      setError('El email es demasiado largo (máx. 100 caracteres)');
+      return;
+    }
+
+    if (password.length < 8 ) {
+      setError('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    const encryptedEmail = CryptoJS.AES.encrypt(email.trim(), AES_SECRET).toString();
+    const encryptedPassword = CryptoJS.AES.encrypt(password, AES_SECRET).toString();
+
     setIsLoading(true);
     setError('');
 
     try {
       const response = await axios.post('http://localhost:5000/auth/login', {
-        email,
-        password,
+        email: encryptedEmail,
+        password: encryptedPassword,
       });
-
-      console.log('Respuesta recibida:', response.data);
 
       if (response.data.requires2FA) {
         navigate('/dfa', {
           state: {
             email: response.data.email,
             qrCode: response.data.qrCode || null,
+            fromRegister: false
           },
         });
         return;
       }
-
-      console.log('Guardando token y user en localStorage...');
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      console.log('Token guardado:', localStorage.getItem('token'));
-      console.log('Usuario guardado:', JSON.parse(localStorage.getItem('user')));
-
-      // Comenta temporalmente la navegación para ver logs
-      // navigate('/home');
+      navigate('/home'); // ✅ habilita navegación real si lo deseas
     } catch (error) {
       if (error.response) {
         const { status, data } = error.response;
@@ -65,7 +86,7 @@ const Login = () => {
         } else if (status === 400 && data.message === 'Código de 2FA incorrecto') {
           setError('Código de 2FA incorrecto');
         } else {
-          setError('Error en el servidor. Inténtalo de nuevo más tarde.');
+          setError('Error: ' + data.message);
         }
       } else if (error.request) {
         setError('No se recibió respuesta del servidor. Verifica tu conexión a internet.');
@@ -77,6 +98,7 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="login-container d-flex justify-content-center align-items-center vh-100">

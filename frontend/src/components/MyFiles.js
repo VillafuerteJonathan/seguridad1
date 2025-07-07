@@ -56,6 +56,7 @@ const MyFiles = () => {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [accionesPendientes, setAccionesPendientes] = useState([]);
   const [permisosTemporales, setPermisosTemporales] = useState([]);
+  const [mensajeFirma, setMensajeFirma] = useState('');
 
   const currentUser = JSON.parse(localStorage.getItem('user'));
   const modalRef = useRef(null);
@@ -112,9 +113,34 @@ useEffect(() => {
     modal.show();
   };
 
-  const handleDescifrar = () => {
+const verificarFirma = async () => {
+  try {
+    const res = await fetch('http://localhost:5000/api/verify-signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId: archivoSeleccionado.id }),
+    });
+
+    const data = await res.json();
+    return data.valid;
+  } catch (err) {
+    console.error('Error al verificar firma:', err);
+    return false;
+  }
+};
+
+  const handleDescifrar = async () => {
     setErrorClave('');
     setTextoDescifrado(null);
+    setMensajeFirma('');
+
+    const firmaValida = await verificarFirma();
+    if (!firmaValida) {
+      setErrorClave('⚠️ Firma digital inválida: El archivo puede haber sido alterado.');
+      return;
+    } else {
+      setMensajeFirma('✅ Firma digital válida: El archivo no ha sido alterado.');
+    }
 
     try {
       const encryptedBytes = base64ToBytes(archivoSeleccionado.encrypted_content);
@@ -413,7 +439,9 @@ const handleCompartir = () => {
               <button className="btn btn-success mt-3" onClick={handleDescifrar}>
                 Ver PDF descifrado
               </button>
-              {errorClave && <p className="text-danger mt-2">{errorClave}</p>}
+              {mensajeFirma && <div className="alert alert-success mt-3">{mensajeFirma}</div>}
+              {errorClave && <div className="alert alert-danger mt-3">{errorClave}</div>}
+
 
               {textoDescifrado && (
                 <div className="mt-4">
