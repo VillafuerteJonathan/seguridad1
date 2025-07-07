@@ -294,18 +294,35 @@ const handleDescifrar = async () => {
                     )}
 
                     {(archivoSeleccionado?.permission === 'download' || archivoSeleccionado?.permission === 'owner') && (
-                      <div className="mt-3">
-                        <a
-                          href={textoDescifrado}
-                          className="btn btn-outline-success"
-                          download={archivoSeleccionado.filename}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          ⬇️ Descargar PDF
-                        </a>
-                      </div>
-                    )}
+                        <div className="mt-3">
+                          <button
+                            className="btn btn-outline-success"
+                            onClick={() => {
+                              fetch('http://localhost:5000/api/log-action', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  userId: currentUser.id,
+                                  fileId: archivoSeleccionado.id,
+                                  action: 'download',
+                                  description: `Usuario ${currentUser.id} descargó el archivo ${archivoSeleccionado.id}`
+                                }),
+                              });
+
+                              const link = document.createElement('a');
+                              link.href = textoDescifrado;
+                              link.download = archivoSeleccionado.filename || 'archivo.pdf';
+                              link.target = '_blank';
+                              link.rel = 'noopener noreferrer';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                          >
+                            ⬇️ Descargar PDF
+                          </button>
+                        </div>
+                      )}
                   </div>
                 )}
             </div>
