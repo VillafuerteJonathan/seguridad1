@@ -28,7 +28,7 @@ El sistema incorpora múltiples capas de seguridad:
 - **Login con doble autenticación (2FA)**  
   - Primer factor: usuario y contraseña.  
   - Segundo factor: código temporal (OTP) enviado por email o generado por app autenticadora.
-- Sesiones seguras (tokens).
+- Sesiones seguras mediante tokens.
 
 ### 🔸 Validación y Sanitización
 - Middleware para validar tipo y tamaño del archivo.
@@ -54,20 +54,43 @@ Estas medidas garantizan almacenamiento seguro, protección contra manipulación
 
 ## 🚀 Inicio Rápido del Proyecto
 
-Para ejecutar localmente:
-Clona el proyecto de manera local 
+### 1️⃣ Clonar el repositorio
 
-
-### 🔹 Backend
 ```bash
+git clone https://github.com/VillafuerteJonathan/seguridad1.git
+
+
+🔹 Backend (Node.js)
 cd backend
 npm install
 npm install express multer crypto cors
 npm run start
 
-
-### 🔹 Frondend
+🔹 Frontend (React)
 cd frontend
 npm install
 npm install bootstrap tailwindcss
 npm run dev
+
+🛠️ Tecnologías Utilizadas
+Frontend
+
+React
+
+Bootstrap 5
+
+Tailwind CSS
+
+Axios / Fetch API
+
+Backend
+
+Node.js + Express
+
+Crypto (SHA-256 hashing)
+
+Multer (manejo de archivos)
+
+CORS
+
+JWT / OTP (para doble autenticación)
